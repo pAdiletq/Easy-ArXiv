@@ -1,0 +1,153 @@
+/* A compact, shared stage: slides dissolve without moving the rest of the page. */
+.hero-carousel{display:grid;height:clamp(580px,calc(8.333vw + 460px),620px);isolation:isolate;overflow:hidden}
+.hero-carousel .hero-slide{grid-area:1/1;position:relative;height:100%;min-height:0;width:100%;opacity:0;pointer-events:none;transition:opacity 820ms cubic-bezier(.3,0,.2,1);animation:none;z-index:0}
+.hero-carousel .hero-slide.is-active{opacity:1;pointer-events:auto;animation:none;z-index:1}
+.hero-carousel .campus-inner{height:100%;padding-top:30px;padding-bottom:30px;justify-content:center}
+.hero-carousel .campus-inner h1{font-size:clamp(32px,2.5vw,44px);font-weight:650;letter-spacing:-1.1px;line-height:1.18;margin-bottom:27px;max-width:950px;text-wrap:balance}
+.hero-carousel .hero-cards{width:100%;max-width:1180px;gap:22px;align-items:stretch}
+.hero-carousel .hero-card{padding:23px 26px;min-height:282px;border-radius:12px;background:#fffef9f2;border-color:#ffffff8f;box-shadow:0 7px 24px #0b132016}
+.hero-carousel .hero-card-heading{gap:15px;margin-bottom:17px}
+.hero-carousel .hero-card h2{font-size:23px;line-height:1.22;font-weight:600;letter-spacing:-.45px}
+.hero-carousel .archive-mark{font-size:31px}
+.hero-carousel .hero-card-heading .archive-title{position:relative;display:inline-flex;align-items:center;font-weight:400;letter-spacing:0;line-height:1;color:#b31b1b;margin:0}
+.hero-carousel .archive-title:after{content:'';position:absolute;left:0;bottom:-7px;width:28px;height:2px;border-radius:2px;background:currentColor;opacity:.6}
+.hero-carousel .hero-card p{font-size:13px;line-height:1.7;color:#6e6278;margin-bottom:12px;max-width:490px}
+.hero-carousel .hero-card>.text-link{font-size:12px;min-height:30px;padding-top:4px}
+.hero-carousel .publication-card h2{margin-bottom:18px}
+.hero-carousel .publication-steps{gap:13px;margin-bottom:17px}
+.hero-carousel .publication-steps li{grid-template-columns:24px 1fr;gap:11px}
+.hero-carousel .publication-steps li:before{width:23px;height:23px;font-size:11px;background:#8c12ed}
+.hero-carousel .publication-steps strong{font-size:13px;font-weight:600;line-height:1.4}
+.hero-carousel .publication-steps span{font-size:11px;line-height:1.55;margin-top:2px}
+.hero-carousel .publication-card>.btn{min-height:37px;font-size:12px;border-radius:5px}
+.hero-carousel .hero-split{height:100%;grid-template-columns:43% 57%}
+.hero-carousel .hero-copy{padding-top:36px;padding-bottom:36px;padding-right:38px}
+.hero-carousel .hero-copy .eyebrow{font-size:10px;font-weight:600;margin-bottom:19px}
+.hero-carousel .hero-copy h2{font-size:clamp(32px,2.5vw,44px);font-weight:600;line-height:1.2;letter-spacing:-1.1px;max-width:500px}
+.hero-carousel .hero-copy p{font-size:14px;line-height:1.75;max-width:345px;margin:23px 0 24px}
+.hero-carousel .hero-copy .small-caption{font-size:11px;margin-top:18px}
+.hero-carousel .hero-copy>.btn{min-height:40px;font-size:12px;padding:10px 17px}
+.hero-carousel .hero-visual{padding:35px clamp(30px,5.5vw,104px) 35px 43px}
+.hero-carousel .stats-chart{max-width:680px}
+.hero-carousel .stats-chart-head{margin-bottom:22px}
+.hero-carousel .stats-chart h3{font-size:18px;font-weight:600}
+.hero-carousel .stats-chart-head span{font-size:11px}
+.hero-carousel .stats-chart-foot{font-size:10px;line-height:1.5;flex-wrap:wrap;gap:8px 16px;margin-top:17px;padding-top:13px;color:#796889}
+.hero-carousel .interactive-chart{position:relative;min-height:0}
+.hero-carousel .submission-chart{overflow:visible;width:100%;height:auto;display:block}
+.hero-carousel .submission-chart text{font-family:var(--font-ui);font-size:12px}
+.chart-grid-line{stroke:#d9cce5;stroke-width:1}
+.chart-axis,.chart-month{fill:#887496}
+.chart-bar{fill:#bfa0e3;transition:fill .18s,opacity .18s}
+.chart-column{outline:0;cursor:default}
+.chart-hit-area{fill:transparent;pointer-events:all}
+.chart-count{fill:#8200ee;font-weight:650;opacity:0;transition:opacity .15s}
+.chart-column.is-latest .chart-bar{fill:#8200ee}
+.chart-column.is-latest .chart-count{opacity:1}
+.chart-rocket{fill:none;stroke:#8200ee;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.has-chart-selection .chart-bar{opacity:.36}
+.has-chart-selection .chart-count,.has-chart-selection .chart-rocket{opacity:0}
+.has-chart-selection .chart-column.is-selected .chart-bar{opacity:1;fill:#8200ee}
+.chart-column:focus-visible .chart-bar{stroke:#4f008e;stroke-width:2}
+.chart-tooltip{position:absolute;z-index:5;min-width:165px;padding:11px 14px;transform:translate(-50%,calc(-100% - 12px));color:#fff;background:#302638;box-shadow:0 4px 14px #30263820;border-radius:7px;pointer-events:none;white-space:nowrap;line-height:1.5}
+.chart-tooltip:after{content:'';position:absolute;left:calc(50% - 4px);bottom:-4px;width:8px;height:8px;transform:rotate(45deg);background:#302638}
+.chart-tooltip strong,.chart-tooltip span,.chart-tooltip small{display:block}
+.chart-tooltip strong{font-size:10px;font-weight:500;color:#dacde5}
+.chart-tooltip span{font-size:15px;font-weight:600;margin-top:2px}
+.chart-tooltip small{font-size:10px;color:#dfc5fa;margin-top:3px}
+.hero-carousel .sample-paper{height:448px;max-width:535px;padding:25px 27px 22px;display:flex;flex-direction:column;transition:opacity 170ms ease,transform 170ms ease;transform:translateX(0);box-shadow:6px 7px 0 #e8ddef,11px 12px 0 #e0d1eb;overflow:hidden}
+.hero-carousel .sample-paper:after{content:'';position:absolute;right:0;top:0;bottom:0;width:2px;background:#e1d2ec;pointer-events:none}
+.hero-carousel .sample-paper.is-page-turning{opacity:.24;transform:translateX(-7px)}
+.hero-carousel .sample-meta{font-size:10px;min-height:27px;gap:10px}
+.hero-carousel .sample-meta .btn{font-size:10px;min-height:27px;padding:5px 9px;gap:6px;flex-shrink:0}
+.hero-carousel .sample-meta .icon{width:12px;height:12px}
+.hero-carousel .sample-paper h3{font-size:24px;font-weight:600;line-height:1.18;letter-spacing:-.5px;margin:19px 0 10px;min-height:57px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.hero-carousel .sample-paper h3 a:hover{text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:4px}
+.hero-carousel .sample-paper .authors{font-size:10px;line-height:1.5;padding-bottom:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:29px;color:#85738f}
+.hero-carousel .sample-paper h4{font-size:14px;font-weight:600;margin:15px 0 9px}
+.hero-carousel .sample-paper .sample-abstract{font-size:15px;line-height:1.58;color:#6b5b76;margin:0;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.hero-carousel .sample-actions{margin-top:auto;padding-top:16px;gap:12px;flex-shrink:0}
+.hero-carousel .sample-actions .text-link{font-size:10px;gap:6px}
+.hero-carousel .sample-actions .btn{font-size:10px;min-height:33px;padding:8px 11px;gap:6px}
+.hero-carousel .sample-actions .icon{width:14px;height:14px}
+@media(min-width:1700px){
+  .hero-carousel .hero-card{padding:25px 28px;min-height:294px}
+  .hero-carousel .hero-card p{font-size:14px}
+  .hero-carousel .hero-card h2{font-size:24px}
+  .hero-carousel .publication-steps strong{font-size:14px}
+  .hero-carousel .publication-steps span{font-size:12px}
+  .hero-carousel .sample-paper{height:466px;padding:28px 30px 24px;max-width:550px}
+  .hero-carousel .sample-paper h3{font-size:26px}
+  .hero-carousel .sample-paper .sample-abstract{font-size:16px}
+}
+@media(min-width:761px) and (max-width:1100px){
+  .hero-carousel{height:580px}
+  .hero-carousel .hero-card{padding:21px;min-height:304px}
+  .hero-carousel .hero-card h2{font-size:21px}
+  .hero-carousel .hero-card p{font-size:12px}
+  .hero-carousel .hero-copy{padding-left:32px;padding-right:24px}
+  .hero-carousel .hero-copy h2{font-size:33px}
+  .hero-carousel .hero-copy p{font-size:13px}
+  .hero-carousel .hero-visual{padding:30px 32px 30px 25px}
+  .hero-carousel .sample-paper{height:450px;padding:22px}
+  .hero-carousel .sample-paper h3{font-size:22px}
+  .hero-carousel .sample-paper .sample-abstract{font-size:14px}
+}
+@media(max-width:760px){
+  /* All three grid cells reserve one natural height. Long copy stays readable. */
+  .hero-carousel{height:auto;min-height:0}
+  .hero-carousel .hero-slide{height:auto;min-height:0}
+  .hero-carousel .campus-inner{height:auto;min-height:0;padding:26px 0}
+  .hero-carousel .campus-inner h1{font-size:clamp(27px,6.8vw,34px);font-weight:600;line-height:1.18;letter-spacing:-.7px;margin-bottom:21px;text-wrap:initial}
+  .hero-carousel .hero-cards{grid-template-columns:1fr;gap:12px}
+  .hero-carousel .hero-card{padding:18px 21px;min-height:0;border-radius:10px}
+  .hero-carousel .hero-card-heading{margin-bottom:12px;gap:13px}
+  .hero-carousel .hero-card h2{font-size:21px}
+  .hero-carousel .archive-mark{font-size:28px}
+  .hero-carousel .hero-card p{font-size:12px;line-height:1.65;margin-bottom:10px}
+  .hero-carousel .hero-card>.text-link{font-size:11px;min-height:28px}
+  .hero-carousel .publication-card h2{margin-bottom:14px}
+  .hero-carousel .publication-steps{gap:11px;margin-bottom:14px}
+  .hero-carousel .publication-steps strong{font-size:12px}
+  .hero-carousel .publication-steps span{font-size:11px;line-height:1.5}
+  .hero-carousel .publication-card>.btn{font-size:11px;min-height:35px}
+  .hero-carousel .hero-split{grid-template-columns:1fr;grid-template-rows:auto 1fr;height:100%}
+  .hero-carousel .hero-copy{padding:28px 25px 25px;min-height:250px;justify-content:center}
+  .hero-carousel .hero-copy .eyebrow{font-size:9px;margin-bottom:13px}
+  .hero-carousel .hero-copy h2{font-size:31px;line-height:1.2;letter-spacing:-.75px}
+  .hero-carousel .hero-copy p{font-size:13px;margin:16px 0;max-width:430px}
+  .hero-carousel .hero-copy .small-caption{font-size:10px;margin-top:8px}
+  .hero-carousel .hero-copy>.btn{min-height:36px;font-size:11px;padding:8px 13px}
+  .hero-carousel .hero-visual{padding:30px 25px 36px;min-height:370px}
+  .hero-carousel .stats-chart{max-width:530px}
+  .hero-carousel .stats-chart h3{font-size:16px}
+  .hero-carousel .stats-chart-head{gap:12px;margin-bottom:25px}
+  .hero-carousel .stats-chart-head span{font-size:10px}
+  .hero-carousel .submission-chart text{font-size:15px}
+  .hero-carousel .stats-chart-foot{font-size:9px;gap:6px 12px}
+  .hero-carousel .chart-tooltip{padding:9px 11px;min-width:147px}
+  .hero-carousel .chart-tooltip span{font-size:13px}
+  .hero-carousel .chart-tooltip strong,.hero-carousel .chart-tooltip small{font-size:9px}
+  .hero-carousel .sample-paper{max-width:480px;height:438px;padding:22px 24px;box-shadow:5px 6px 0 #e8ddef,9px 10px 0 #e0d1eb}
+  .hero-carousel .sample-paper h3{font-size:24px;margin-top:17px}
+  .hero-carousel .sample-paper .sample-abstract{font-size:15px;-webkit-line-clamp:4}
+  .hero-carousel .sample-paper .authors{font-size:10px}
+  .hero-carousel .sample-actions{padding-top:15px}
+  .hero-carousel .sample-actions .text-link{font-size:10px}
+  .hero-carousel .sample-actions .btn{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero-carousel .hero-slide,.hero-carousel .sample-paper,.chart-bar,.chart-count{transition:none;animation:none}
+}
+
+@media(min-width:761px){
+  .hero-carousel .campus-inner{width:min(920px,calc(100% - 64px))}
+  .hero-carousel .hero-cards{max-width:920px;gap:20px}
+  .hero-carousel .hero-split{grid-template-columns:46% 54%}
+  .hero-carousel .hero-copy{padding-left:max(32px,calc((100vw - 1000px)/2))}
+  .hero-carousel .stats-chart{max-width:520px}
+  .hero-carousel .sample-paper{max-width:480px}
+}
+@media(min-width:1101px){
+  .hero-carousel .hero-visual{padding-left:42px;padding-right:max(32px,calc((100vw - 1000px)/2))}
+}

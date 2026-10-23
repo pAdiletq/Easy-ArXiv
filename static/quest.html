@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8300ee">
+  <meta name="description" content="Explore a research paper one idea at a time, then check your understanding with AI Quest.">
+  <title>AI Quest · Easy ArXiv</title>
+  <link rel="icon" type="image/svg+xml" href="/static/brand.svg?v=book-2">
+  <link rel="stylesheet" href="/static/css/app.css"><link rel="stylesheet" href="/static/css/refinements.css?v=source-1">
+  <link rel="stylesheet" href="/static/css/quest.css">
+  <script defer src="/static/js/papers.js"></script>
+  <script type="module" src="/static/js/quest.js?v=github-2"></script>
+</head>
+<body class="quest-page">
+  <a class="skip-link" href="#questMain">Skip to AI Quest</a>
+  <div data-site-header></div>
+  <main class="container quest-main" id="questMain" tabindex="-1">
+    <a class="quest-back" id="backToPapers" href="/papers">← <span>Back to papers</span></a>
+    <div class="quest-heading">
+      <div><div class="quest-title-line"><h1>AI Quest</h1><span class="quest-example-badge" id="exampleBadge" hidden>Prepared example</span></div><p>Take a closer look at the ideas behind the paper.</p></div>
+      <div class="quest-tabs" id="questTabs" role="tablist" aria-label="Learning mode" hidden>
+        <button id="ideasTab" type="button" role="tab" aria-selected="true" aria-controls="ideasPanel" tabindex="0">Key ideas</button>
+        <button id="quizTab" type="button" role="tab" aria-selected="false" aria-controls="quizPanel" tabindex="-1">Knowledge check</button>
+      </div>
+    </div>
+
+    <section class="quest-state" id="questState" aria-labelledby="stateTitle" aria-live="polite" aria-atomic="true">
+      <div class="quest-state-icon" id="stateIcon" aria-hidden="true"></div>
+      <h2 id="stateTitle">Choose a paper to begin.</h2>
+      <p id="stateDescription">Open AI Quest from a paper, or explore the prepared example.</p>
+      <div class="quest-state-actions">
+        <button class="btn btn-primary" id="retryButton" type="button" hidden>Try again</button>
+        <button class="btn btn-secondary" id="exampleButton" type="button">Explore an example</button>
+        <button class="btn btn-secondary" id="cancelButton" type="button" hidden>Cancel</button>
+        <a class="quest-text-link" id="statePdf" target="_blank" rel="noopener noreferrer" hidden>Original PDF ↗</a>
+        <a class="quest-text-link" id="stateBack" href="/papers">Back to papers →</a>
+      </div>
+    </section>
+
+    <div class="quest-workspace" id="questWorkspace" hidden>
+      <aside class="quest-sidebar" aria-label="Paper and ideas">
+        <div class="quest-paper-context">
+          <span class="quest-small-label">YOUR PAPER</span>
+          <h2 id="paperTitle">Research paper</h2>
+          <p class="quest-paper-authors" id="paperAuthors"></p>
+          <a class="quest-original-link" id="paperPdf" target="_blank" rel="noopener noreferrer" hidden>Original PDF <span aria-hidden="true">↗</span></a>
+        </div>
+        <div id="ideasNavigation">
+          <h3 class="quest-small-label quest-toc-heading">KEY IDEAS <span id="ideaCount"></span></h3>
+          <label class="quest-mobile-topic" for="topicSelect">Choose an idea</label>
+          <select class="quest-topic-select" id="topicSelect"></select>
+          <ol class="quest-topic-list" id="topicList"></ol>
+        </div>
+        <div class="quest-quiz-context" id="quizContext" hidden>
+          <span class="quest-small-label">A MOMENT TO REFLECT</span>
+          <p>Work through the questions at your own pace. You can return to the key ideas whenever you need.</p>
+          <button class="quest-text-link" id="contextIdeas" type="button">Revisit key ideas →</button>
+        </div>
+        <p class="quest-progress-note">Your progress is saved in this browser.</p>
+      </aside>
+
+      <div class="quest-paper-surface">
+        <section class="quest-ideas-panel" id="ideasPanel" role="tabpanel" aria-labelledby="ideasTab" tabindex="0">
+          <div class="quest-reader-meta"><span class="quest-small-label" id="ideaPosition"></span><button class="quest-listen" id="listenButton" type="button" aria-pressed="false"><svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m11 5-6 4H2v6h3l6 4V5ZM15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Listen</span></button></div>
+          <article class="quest-idea-content"><h2 id="ideaTitle" tabindex="-1"></h2><div id="ideaBody"></div><figure class="quest-concept" id="ideaDiagram" hidden></figure></article>
+          <p class="sr-only" id="listenStatus" role="status"></p>
+          <div class="quest-reader-actions"><button class="quest-text-link" id="previousIdea" type="button">← Previous idea</button><button class="btn btn-primary" id="nextIdea" type="button">Next idea →</button></div>
+          <p class="quest-source-note" id="sourceNote"></p>
+        </section>
+
+        <section class="quest-quiz-panel" id="quizPanel" role="tabpanel" aria-labelledby="quizTab" tabindex="0" hidden>
+          <span class="quest-small-label" id="quizPosition">QUESTION 1 OF 9</span>
+          <div id="questionView">
+            <form id="questionForm">
+              <fieldset class="quest-question" aria-describedby="questionHint"><legend id="questionText" tabindex="-1"></legend><p class="quest-question-hint" id="questionHint">Choose the best answer.</p><div class="quest-options" id="answerOptions"></div></fieldset>
+              <div class="quest-feedback" id="answerFeedback" role="status" aria-live="polite" hidden></div>
+              <div class="quest-quiz-actions"><button class="quest-text-link" id="previousQuestion" type="button">← Previous</button><button class="btn btn-primary" id="checkAnswer" type="submit" disabled>Check answer</button><button class="btn btn-primary" id="nextQuestion" type="button" hidden>Next question →</button></div>
+            </form>
+          </div>
+          <div class="quest-completion" id="completionView" hidden>
+            <div class="quest-completion-mark" aria-hidden="true">✓</div><h2 id="completionTitle" tabindex="-1"></h2><p id="completionSummary"></p>
+            <div class="quest-completion-actions"><button class="btn btn-primary" id="reviewAnswers" type="button">Review answers</button><button class="btn btn-secondary" id="restartQuiz" type="button">Start again</button><button class="quest-text-link" id="backToIdeas" type="button">Back to the ideas →</button></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+  <div data-site-footer></div>
+</body>
+</html>

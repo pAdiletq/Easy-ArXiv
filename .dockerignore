@@ -1,0 +1,14 @@
+# Build context allowlist: private/local material never reaches the image builder.
+**
+!requirements.txt
+!server.py
+!cloud_store.py
+!static/
+!static/*.html
+!static/brand.svg
+!static/css/
+!static/css/*.css
+!static/js/
+!static/js/*.js
+!static/images/
+!static/images/cornell-campus.jpg
