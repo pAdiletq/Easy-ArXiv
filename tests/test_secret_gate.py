@@ -44,7 +44,7 @@ class PublicSecretGateTests(unittest.TestCase):
         self.assertTrue(gate.scan_text(".env.example", "GOOGLE_API_KEY=YOUR_API_KEY\n"))
 
     def test_private_files_are_blocked_without_reading_their_contents(self):
-        for path in (".env", ".env.production", "static/credentials.json", "service-account.json", "data/saved.sqlite", "key.pem", "dist/index.html", "app.pyc"):
+        for path in (".env", ".env.production", "static/credentials.json", "service-account.json", "data/saved.sqlite", "key.pem", "dist/index.html", "app.pyc", ".dev.vars", "cloudflare/.dev.vars.production", ".wrangler/runtime.json", "nested/.wrangler/state.json"):
             self.assertTrue(gate.forbidden_path(path), path)
         for path in (".env.example", "static/data/topics.json", "data/monthly-stats.json", "server.py"):
             self.assertFalse(gate.forbidden_path(path), path)
@@ -77,6 +77,29 @@ class PublicSecretGateTests(unittest.TestCase):
                 gate.scan_history(root, "--all")
             with self.assertRaises(RuntimeError):
                 gate.scan_history(root, "HEAD --all")
+
+    def test_forced_tracked_cloudflare_runtime_files_are_blocked_without_opening_blobs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return subprocess.run(["git", "-C", directory, *args], check=True, capture_output=True)
+            git("init", "--quiet")
+            paths = (".dev.vars", "cloudflare/.dev.vars.production", ".wrangler/runtime.json", "nested/.wrangler/state.json")
+            (root / ".gitignore").write_text(".dev.vars\n.dev.vars.*\n.wrangler/\n", encoding="utf-8")
+            for name in paths:
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text("SYNTHETIC-RUNTIME-FIXTURE", encoding="utf-8")
+            git("add", "-f", "--", *paths)
+            actual_git = gate.git
+            def metadata_only(path, *args):
+                if args[:2] == ("cat-file", "blob"):
+                    self.fail("Private runtime fixture content must not be opened")
+                return actual_git(path, *args)
+            with patch.object(gate, "git", side_effect=metadata_only):
+                findings = gate.scan_staged(root)
+            self.assertEqual({finding.path for finding in findings}, set(paths))
+            self.assertTrue(all(finding.line == 0 for finding in findings))
 
     def test_reviewed_artifact_exception_is_exact_and_history_only(self):
         path, oid = next(iter(gate.REVIEWED_HISTORICAL_ARTIFACTS))

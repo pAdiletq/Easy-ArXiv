@@ -22,7 +22,7 @@ export class Element {
   close(){this.open=false;}
 }
 function storage(initial={}){const values=new Map(Object.entries(initial));const writes=[];return{values,writes,getItem:key=>values.get(key)??null,setItem(key,value){writes.push([key,String(value)]);values.set(key,String(value));}};}
-export function makeHarness({authenticated=false,user=exampleUser,configured=true,sessionFailure=false,logoutFailure=false,saveFailure=false,getSavedFailure=false,sessionGate=null,saved=[],location='http://localhost:5051/papers?q=attention'}={}){
+export function makeHarness({authenticated=false,user=exampleUser,configured=true,sessionFailure=false,logoutFailure=false,saveFailure=false,getSavedFailure=false,getSavedResponse=null,sessionGate=null,saved=[],location='http://localhost:5051/papers?q=attention'}={}){
   const header=new Element();const footer=new Element();const body=new Element('body');const head=new Element('head');const document=new Element('document');document.body=body;document.head=head;
   const authOnly=new Element('a');document.allSelectors=new Map([['[data-auth-only]',[authOnly]]]);
   document.querySelector=selector=>({'[data-site-header]':header,'[data-site-footer]':footer}[selector]||null);
@@ -39,7 +39,7 @@ export function makeHarness({authenticated=false,user=exampleUser,configured=tru
     if(url==='/api/session'){if(sessionGate)await sessionGate;if(sessionFailure)throw new Error('offline');return{ok:true,status:200,json:async()=>({authenticated:signedIn,...(signedIn?{user}:{})})};}
     if(url==='/api/config')return{ok:true,status:200,json:async()=>({orcid_configured:configured})};
     if(url==='/auth/logout'){if(logoutFailure==='network')throw new Error('offline');if(!logoutFailure)signedIn=false;return{ok:!logoutFailure,status:logoutFailure?500:200,json:async()=>({authenticated:false})};}
-    if(url==='/api/saved' && !options.method){if(getSavedFailure)throw new Error('offline');return{ok:signedIn,status:signedIn?200:401,json:async()=>({papers:serverPapers})};}
+    if((url==='/api/saved' || url.startsWith('/api/saved?')) && !options.method){if(getSavedResponse)return getSavedResponse({url,options,signedIn});if(getSavedFailure)throw new Error('offline');return{ok:signedIn,status:signedIn?200:401,json:async()=>({papers:serverPapers})};}
     if(url.startsWith('/api/saved') && options.method){if(saveFailure==='network')throw new Error('offline');if(saveFailure===401)signedIn=false;if(saveFailure)return{ok:false,status:typeof saveFailure==='number'?saveFailure:500,json:async()=>({})};if(!signedIn)return{ok:false,status:401,json:async()=>({})};if(options.method==='POST'){const p=JSON.parse(options.body).paper;serverPapers=[p,...serverPapers.filter(item=>item.id!==p.id)];}else serverPapers=serverPapers.filter(item=>item && (item.id||'').replace(/v\d+$/,'')!==decodeURIComponent(url.split('/api/saved/')[1]));return{ok:true,status:200,json:async()=>({papers:serverPapers})};}
     throw new Error('Unexpected test request: '+url);
   };

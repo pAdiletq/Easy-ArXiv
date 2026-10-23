@@ -1,66 +1,101 @@
-# Cloudflare Pages and Cloud Run deployment
+# Deploy on Cloudflare Free
 
-Use the public `pAdiletq/Easy-ArXiv` repository for both services. Keep the old server repository separately. Do not delete it, change its visibility, or import its private files or Git history here.
+Use the single public `pAdiletq/Easy-ArXiv` repository for the interface and edge
+API. Keep `Esay-Arxiv-Server` as the owner's archive. Do not delete it, change its
+visibility, or copy its private files or Git history into this repository.
+
+This deployment uses **Pages + JavaScript Functions + D1**. It does not require
+a Google Cloud billing account, Cloud Run, Firestore, a payment card, or a paid
+Cloudflare plan. External Gemini calls still use the owner's API quota; hosting
+does not include unlimited AI usage.
 
 ## Before publishing
 
-Revoke secrets previously committed to Git. Old public ORCID secrets must be replaced in ORCID Developer Tools; removing their latest file does not revoke them. Run the staged and history checks from the root README. A failed check blocks publishing. Agree on cleanup before rewriting any public branch.
+Replace any credentials previously exposed in a public repository at their
+provider. Deleting the latest file does not revoke a leaked key. Run the staged
+and history secret checks from the root README before every publication. A
+failed check blocks publishing. Do not rewrite public Git history without an
+agreed cleanup plan.
 
-Sign in to Cloudflare and Google Cloud. Google requires two-step verification. The account owner should complete account security changes, payment setup, and acceptance of terms.
+## 1. Create the Pages project
 
-## Frontend
+In Cloudflare, choose **Workers & Pages → Create → Pages → Connect to Git** and
+select the public repository and production branch. Keep the Free plan.
 
-Connect this repository to Cloudflare Pages through its Git integration. Framework: **None**. Build: `python scripts/build_pages.py`. Output: **dist**. Root: repository root. No API key is needed in the build. Record the assigned HTTPS Pages origin for `PUBLIC_ORIGIN` below.
-
-The interface can be deployed before the backend is configured, but do not call deployment complete until API, authentication, and persistence checks pass. See [the frontend guide](../cloudflare/README.md).
-
-## Google project
-
-Use a dedicated project and billing account explicitly approved by the owner. Enable Cloud Run, Artifact Registry, Cloud Build, Firestore, and Secret Manager as required. Source builds and image storage have separate pricing; review the whole project's billing.
-
-Create a **Firestore Native** database with ID `(default)`, near the Cloud Run region. Its location cannot be freely changed later. Use locked production rules: browsers do not directly access Firestore.
-
-Use a dedicated Cloud Run runtime service account. Grant `roles/datastore.user` for this project and Secret Manager Secret Accessor only on the required individual secrets. Review IAM grants before applying them. Do not create downloadable service-account JSON keys.
-
-Expiry is checked by the application on every auth read. Firestore TTL cleanup is optional and can incur charges; do not enable it as an assumed free feature.
-
-## Runtime environment
-
-| Variable | Value |
+| Build setting | Value |
 | --- | --- |
-| `APP_ENV` | `production` |
-| `SAVED_STORE` | `firestore` |
-| `GOOGLE_CLOUD_PROJECT` | actual project ID |
-| `FIRESTORE_DATABASE` | `(default)` |
-| `PUBLIC_ORIGIN` | exact production HTTPS Pages/custom origin, no path |
-| `ORCID_CLIENT_ID` | application's public client ID |
-| `ORCID_REDIRECT_URI` | `PUBLIC_ORIGIN/auth/callback`, also register this exact URL in ORCID |
-| `GEMINI_MODEL` | a model enabled for the owner's Gemini project |
-| `AI_USER_DAILY_LIMIT` | `10` initially |
-| `AI_GLOBAL_DAILY_LIMIT` | `100` initially |
+| Framework | None |
+| Root | repository root |
+| Command | `python scripts/build_pages.py` |
+| Output | `dist` |
 
-Create secrets **easy-arxiv-gemini-key** and **easy-arxiv-orcid-secret** in Secret Manager. Attach specific versions to runtime variables `GOOGLE_API_KEY` and `ORCID_CLIENT_SECRET`. Enter values through the private provider interface, never Git, manifests, shell arguments, build logs, or chat. `.env.example` contains empty placeholders only.
+Leave Node dependency installation enabled. The lockfile supplies the reviewed
+bundler and XML parser. The build only uses public source files; no API secret
+is required to produce the artifact. Record the assigned HTTPS Pages origin.
 
-## Cloud Run
+## 2. Create and bind D1
 
-Build from this repository's Dockerfile. Its context excludes Git, `.env`, credentials, databases, tests, and unrelated files. The runtime is non-root, listens on `$PORT`, and disables application URL access logs to avoid logging OAuth callback codes.
+Create a D1 database, for example `easy-arxiv`. Apply the public SQL in
+[cloudflare/d1-schema.sql](../cloudflare/d1-schema.sql) using the database console.
+The schema creates account collections, hashed sessions and OAuth states,
+atomic AI quota counters, and research caches.
 
-Initial settings: 1 vCPU, 512 MiB RAM, minimum instances **0**, maximum instances **1**, concurrency **8**, request timeout **120 seconds**. Use `/health` as a startup probe after Firestore and secrets are configured. Health fails if durable storage is unavailable; it never substitutes an ephemeral database.
+In the Pages project's production **Settings → Bindings**, add a D1 database
+binding named **`DB`**, selecting that database. Do not use a local SQLite file
+as a production fallback. If the binding or schema is missing, account and API
+operations must fail visibly rather than appear to save data.
 
-Allow public invocation only after the owner approves public exposure. The Pages proxy calls this API; account actions require authentication and CSRF checks. Instance limits and AI quotas are not a hard Google Cloud spending cap. Keep minimum instances at zero initially; the frontend is independent of backend cold starts.
+## 3. Configure the runtime
 
-Set Pages runtime `BACKEND_ORIGIN` to the real HTTPS `*.run.app` origin, then redeploy Pages. No API key or ORCID secret belongs in Pages variables.
+Set the exact production origin in `PUBLIC_ORIGIN`. For ORCID, register that
+origin plus `/auth/callback`, and set the identical `ORCID_REDIRECT_URI` and the
+public `ORCID_CLIENT_ID`. Keep the existing root callback only if it is the
+registered application callback; both paths are handled by the Worker.
 
-## Verification before switching public links
+Choose `GEMINI_MODEL` from the models enabled for the owner's API project. Start
+with `AI_USER_DAILY_LIMIT=10` and `AI_GLOBAL_DAILY_LIMIT=100`. These D1 quotas
+reduce abuse but do not replace the AI provider's account limits.
 
-- All pages render from Pages even while Python is unavailable.
-- Search reaches the real arXiv API; upstream failure is reported honestly.
-- ORCID login/logout use the frontend domain, registered callback, and secure HTTP-only cookies. Config/browser responses contain no secrets.
-- Saved papers remain account-scoped after a Cloud Run restart or revision.
-- The prepared example works anonymously; new AI generation requires login and respects durable daily quotas.
-- Cross-origin mutations fail, API/auth responses are not cached, and `/health` succeeds.
-- Review provider usage and billing before promoting the new URL.
+Add **`GOOGLE_API_KEY`** and **`ORCID_CLIENT_SECRET`** under **Variables and Secrets**
+using **Encrypt**. Enter their values privately in Cloudflare. Never store them
+in GitHub, `.env.example`, HTML, JavaScript, public JSON, build substitutions,
+workflow files, shell arguments, screenshots, logs, or chat.
 
-Keep the existing website and server repository while verifying the new deployment. Only then update the Product Hunt website link.
+Re-deploy Pages after setting bindings and secrets. Do not copy production
+secrets or `DB` into preview environments. Do not enable paid services or
+observability that records complete OAuth request URLs/bodies.
 
-Official references: [Cloudflare Git integration](https://developers.cloudflare.com/pages/configuration/git-integration/github-integration/), [Cloud Run](https://cloud.google.com/run/docs/deploying), [secrets](https://cloud.google.com/run/docs/configuring/services/secrets), [service identity](https://cloud.google.com/run/docs/securing/service-identity), [Firestore pricing](https://cloud.google.com/firestore/pricing), [removing sensitive Git data](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository).
+## 4. Verify before switching links
+
+- Open every page and refresh `/papers`, `/read`, `/saved`, and `/quest` directly.
+- Verify `/health` reports the configured D1 service is healthy.
+- Search a real query; upstream unavailability must show an honest error.
+- Sign in and out with ORCID on the production domain using secure HTTP-only cookies.
+- Save a paper, sign out, sign in again, and confirm it stays in that account.
+- Verify a different account cannot read the first account's saved papers.
+- Confirm the prepared AI example works anonymously, new generation requires
+  ORCID, and quota exhaustion produces a clear response.
+- Confirm cross-origin mutations fail and API/auth/callback responses are not cached.
+- Run the secret scan on the exact files and Git history being published.
+
+The Free plan has finite limits: currently 100,000 Worker requests per day and
+10 ms CPU per invocation. D1 includes 5 million rows read and 100,000 rows written
+per day, with 5 GB total storage. CPU time excludes time waiting on network
+responses. Load-test real research responses on the deployed free runtime;
+passing local tests alone does not prove a workload fits its CPU limit. Keep
+the existing public website until these production checks pass.
+
+## Optional Python server
+
+The Python FastAPI implementation and Dockerfile remain for local development
+or a future separately approved Cloud Run deployment. They are not used by this
+Cloudflare deployment. Cloud Run needs billing and a durable cloud data store;
+do not enable it as part of this no-card setup. `cloudflare/pages-worker.mjs`
+is the retained optional proxy and is not the production Worker entry point.
+
+Official references: [Pages Git integration](https://developers.cloudflare.com/pages/configuration/git-integration/github-integration/),
+[D1 setup](https://developers.cloudflare.com/d1/get-started/),
+[bindings and encrypted secrets](https://developers.cloudflare.com/pages/functions/bindings/),
+[Workers Free limits](https://developers.cloudflare.com/workers/platform/pricing/),
+[D1 Free limits](https://developers.cloudflare.com/d1/platform/pricing/),
+[removing sensitive Git data](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository).

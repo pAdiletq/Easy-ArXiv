@@ -26,6 +26,10 @@ application_default_credentials.json
 venv/
 env/
 node_modules/
+.pages-build-*/
+.wrangler/
+.dev.vars
+.dev.vars.*
 __pycache__/
 *.py[cod]
 .pytest_cache/

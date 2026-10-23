@@ -85,15 +85,31 @@ function normalizeSaved(records) {
   return Array.isArray(records) ? [...new Map(records.map(normalizePaper).filter(Boolean).map(paper => [paper.id,paper])).values()] : [];
 }
 async function fetchSaved(version) {
-  const response = await fetch('/api/saved', {credentials:'same-origin', headers:{Accept:'application/json'}});
-  if (version !== authVersion) return [];
-  if (response.status === 401) { setGuest(); return []; }
-  if (!response.ok) throw new Error('Saved papers unavailable');
-  const payload = await response.json();
-  if (version !== authVersion || !currentUser) return [];
-  memorySaved = normalizeSaved(payload.papers);
-  emit('papers:saved', {papers:loadSaved()});
-  return loadSaved();
+  const records = [];
+  let start = 0;
+  for (let page = 0; page < 5; page++) {
+    const response = await fetch('/api/saved' + (start ? '?start=' + start : ''), {credentials:'same-origin', headers:{Accept:'application/json'}});
+    if (version !== authVersion) return [];
+    if (response.status === 401) { setGuest(); return []; }
+    if (!response.ok) throw new Error('Saved papers unavailable');
+    const payload = await response.json();
+    if (version !== authVersion || !currentUser) return [];
+    if (!payload || !Array.isArray(payload.papers) || records.length + payload.papers.length > 100 ||
+        (payload.has_more !== undefined && typeof payload.has_more !== 'boolean')) throw new Error('Saved papers unavailable');
+    records.push(...payload.papers);
+    // Older API versions return their complete list without pagination fields.
+    if (payload.has_more !== true) {
+      memorySaved = normalizeSaved(records);
+      emit('papers:saved', {papers:loadSaved()});
+      return loadSaved();
+    }
+    if (!Number.isInteger(payload.next_start) || payload.next_start <= start || payload.next_start > 100) {
+      throw new Error('Saved papers unavailable');
+    }
+    start = payload.next_start;
+  }
+  // Keep the previous complete cache if a malformed response never terminates.
+  throw new Error('Saved papers unavailable');
 }
 async function initializeAuth() {
   try {
@@ -174,6 +190,7 @@ export async function toggleSaved(raw) {
       });
       if(version!==authVersion)return false;
       if(response.status===401){setGuest();await requireSignIn('Your session expired. Sign in again to save this paper.');return false;}
+      if(adding && response.status===409){toast('Your reading list is full (100 papers). Remove a paper before saving another.');return isSaved(paper.id);}
       if(!response.ok)throw new Error('Save failed');
       let payload=null;try{payload=await response.json();}catch{}
       if(version!==authVersion || !currentUser)return false;

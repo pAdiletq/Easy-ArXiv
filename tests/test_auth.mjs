@@ -46,3 +46,93 @@ test('provider credentials are never copied to browser storage or saved API payl
 test('footer replaces X with the user-approved Product Hunt product link',async()=>{
   const h=makeHarness();await h.api.mountShell();assert.match(h.footer.innerHTML,/https:\/\/www\.producthunt\.com\/products\/easy-arxiv/);assert.match(h.footer.innerHTML,/Easy ArXiv on Product Hunt/);assert.doesNotMatch(h.footer.innerHTML,/x\.com|twitter\.com/);
 });
+
+const savedResponse = (payload, status=200) => ({ok:status>=200 && status<300,status,json:async()=>payload});
+const savedBatch = (start, count=20) => Array.from({length:count},(_,index)=>paper({id:'1706.'+String(start+index).padStart(5,'0'),title:'Saved paper '+(start+index)}));
+const savedGets = h => h.calls.filter(call=>call.url.startsWith('/api/saved') && !call.options.method);
+
+test('paginated saved papers appear together only after the complete list arrives',async()=>{
+  let finish;const secondPage=new Promise(resolve=>{finish=resolve;});
+  const h=makeHarness({authenticated:true,getSavedResponse:async({url})=>{
+    if(url==='/api/saved')return savedResponse({papers:savedBatch(0),has_more:true,next_start:20});
+    assert.equal(url,'/api/saved?start=20');await secondPage;
+    return savedResponse({papers:savedBatch(20,1),has_more:false,next_start:null});
+  }});
+  await flush();
+  assert.equal(savedGets(h).length,2);assert.deepEqual(plain(h.api.loadSaved()),[]);
+  assert.equal(h.events.filter(event=>event.type==='papers:saved').length,0);
+  finish();await h.api.authReady;
+  assert.equal(h.api.loadSaved().length,21);
+  assert.equal(h.api.loadSaved()[20].title,'Saved paper 20');
+  assert.equal(h.events.filter(event=>event.type==='papers:saved').length,1);
+  assert.ok(savedGets(h).every(call=>call.options.credentials==='same-origin'));
+});
+
+test('all one hundred saved papers load in at most five requests and legacy lists stay one page',async()=>{
+  const h=makeHarness({authenticated:true,getSavedResponse:({url})=>{
+    const start=Number(new URL(url,'https://example.test').searchParams.get('start')||0);
+    return savedResponse({papers:savedBatch(start),has_more:start<80,next_start:start<80?start+20:null});
+  }});
+  await h.api.authReady;assert.equal(h.api.loadSaved().length,100);
+  assert.deepEqual(savedGets(h).map(call=>call.url),['/api/saved','/api/saved?start=20','/api/saved?start=40','/api/saved?start=60','/api/saved?start=80']);
+  const legacy=makeHarness({authenticated:true,saved:savedBatch(0,25)});
+  await legacy.api.authReady;assert.equal(legacy.api.loadSaved().length,25);assert.equal(savedGets(legacy).length,1);
+});
+
+test('a failed later page keeps the previous complete saved list and reports the failed refresh',async()=>{
+  let refreshing=false;
+  const h=makeHarness({authenticated:true,getSavedResponse:({url})=>{
+    if(!refreshing)return savedResponse({papers:[paper()]});
+    return url==='/api/saved'?savedResponse({papers:savedBatch(0),has_more:true,next_start:20}):savedResponse({},503);
+  }});
+  await h.api.authReady;const before=plain(h.api.loadSaved());const events=h.events.filter(event=>event.type==='papers:saved').length;
+  refreshing=true;const result=await h.api.refreshSaved();
+  assert.deepEqual(plain(result),before);assert.deepEqual(plain(h.api.loadSaved()),before);
+  assert.equal(h.events.filter(event=>event.type==='papers:saved').length,events);
+  assert.match(h.toast(),/saved papers could not be loaded/);assert.equal(h.api.isAuthenticated(),true);
+});
+
+test('malformed pagination cannot loop, overfill, or publish a partial saved list',async()=>{
+  for(const next_start of [0,-1,0.5,NaN,Infinity,'20',101,undefined]){
+    const h=makeHarness({authenticated:true,getSavedResponse:()=>savedResponse({papers:savedBatch(0),has_more:true,next_start})});
+    await h.api.authReady;assert.equal(savedGets(h).length,1);assert.deepEqual(plain(h.api.loadSaved()),[]);
+    assert.equal(h.events.some(event=>event.type==='papers:saved'),false);
+  }
+  for(const payload of [{papers:savedBatch(0,101)},{papers:savedBatch(0),has_more:'false'},{papers:null,has_more:false}]){
+    const h=makeHarness({authenticated:true,getSavedResponse:()=>savedResponse(payload)});
+    await h.api.authReady;assert.equal(savedGets(h).length,1);assert.deepEqual(plain(h.api.loadSaved()),[]);
+  }
+  let count=0;
+  const repeating=makeHarness({authenticated:true,getSavedResponse:()=>savedResponse({papers:savedBatch(count++,1),has_more:true,next_start:20})});
+  await repeating.api.authReady;assert.equal(savedGets(repeating).length,2);assert.deepEqual(plain(repeating.api.loadSaved()),[]);
+  count=0;
+  const endless=makeHarness({authenticated:true,getSavedResponse:()=>savedResponse({papers:savedBatch(count,1),has_more:true,next_start:++count})});
+  await endless.api.authReady;assert.equal(savedGets(endless).length,5);assert.deepEqual(plain(endless.api.loadSaved()),[]);
+});
+
+test('an expired session on a later page clears account data and hides authenticated links',async()=>{
+  const h=makeHarness({authenticated:true,getSavedResponse:({url})=>url==='/api/saved'?
+    savedResponse({papers:savedBatch(0),has_more:true,next_start:20}):savedResponse({},401)});
+  await h.api.mountShell();assert.equal(savedGets(h).length,2);
+  assert.equal(h.api.isAuthenticated(),false);assert.deepEqual(plain(h.api.loadSaved()),[]);assert.equal(h.authOnly.hidden,true);
+});
+
+test('logout while a later saved page is pending prevents that response restoring the old account cache',async()=>{
+  let refreshing=false,finish;const laterPage=new Promise(resolve=>{finish=resolve;});
+  const h=makeHarness({authenticated:true,getSavedResponse:async({url})=>{
+    if(!refreshing)return savedResponse({papers:[paper()]});
+    if(url==='/api/saved')return savedResponse({papers:savedBatch(0),has_more:true,next_start:20});
+    await laterPage;return savedResponse({papers:savedBatch(20,1),has_more:false,next_start:null});
+  }});
+  await h.api.mountShell();refreshing=true;const refresh=h.api.refreshSaved();await flush();
+  assert.equal(savedGets(h).length,3);await h.signout.emit('click');finish();await refresh;
+  assert.equal(h.api.isAuthenticated(),false);assert.deepEqual(plain(h.api.loadSaved()),[]);
+  assert.equal(h.events.filter(event=>event.type==='papers:saved').at(-1).detail.papers.length,0);
+});
+
+test('the server reading-list cap tells the user to remove a paper and keeps the existing collection',async()=>{
+  const h=makeHarness({authenticated:true,saved:savedBatch(0,100),saveFailure:409});
+  await h.api.authReady;assert.equal(await h.api.toggleSaved(paper({id:'2401.12345'})),false);
+  assert.equal(h.api.loadSaved().length,100);assert.equal(h.api.isAuthenticated(),true);
+  assert.match(h.toast(),/full \(100 papers\).*Remove a paper/);
+});

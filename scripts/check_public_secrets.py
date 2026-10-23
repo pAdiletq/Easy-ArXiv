@@ -44,7 +44,7 @@ PLACEHOLDER = re.compile(
     r")$"
 )
 FORBIDDEN_SUFFIXES = {".pem", ".key", ".p12", ".pfx", ".p8", ".jks", ".keystore", ".sqlite", ".sqlite3", ".db", ".pyc", ".pyo"}
-FORBIDDEN_PARTS = {".aws", ".ssh", ".gcloud", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache", "build", "dist"}
+FORBIDDEN_PARTS = {".aws", ".ssh", ".gcloud", ".wrangler", ".venv", "venv", "node_modules", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".cache", "build", "dist"}
 
 # Preserve the original contributor's exact commit hashes. This one bytecode
 # blob was committed in silvermete0r's 2025-01-27 history, then removed there.
@@ -71,6 +71,7 @@ def forbidden_path(path: str) -> bool:
     parts = {part.lower() for part in p.parts}
     return (
         (name == ".env" or name.startswith(".env.")) and name != ".env.example"
+        or name == ".dev.vars" or name.startswith(".dev.vars.")
         or p.suffix.lower() in FORBIDDEN_SUFFIXES
         or bool(parts & FORBIDDEN_PARTS)
         or name.endswith((".sqlite-wal", ".sqlite-shm", ".sqlite3-wal", ".sqlite3-shm", ".db-wal", ".db-shm"))

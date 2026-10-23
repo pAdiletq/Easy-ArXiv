@@ -1,13 +1,14 @@
-# Cloudflare Pages frontend
+# Cloudflare Pages, Functions, and D1
 
-The frontend and backend live in the same public repository. The static build
-does not read `.env`, credentials, runtime data, or the Python server. The site
-keeps all browser API and authentication requests on its own origin.
+The production deployment uses Cloudflare's Free plan: Pages serves the existing
+interface and an advanced-mode JavaScript Worker handles the API, ORCID, and
+AI requests. D1 stores sessions, reading lists, quotas, and caches. A separate
+Python host, Google Cloud billing account, or `BACKEND_ORIGIN` is not needed.
 
-## Git-connected Pages project
+## Pages project
 
-In Cloudflare **Workers & Pages → Create → Pages → Connect to Git**, select the
-public `pAdiletq/Easy-ArXiv` repository and its production branch. Use:
+Connect `pAdiletq/Easy-ArXiv` with Pages' Git integration and select the production
+branch. Use these settings:
 
 | Setting | Value |
 | --- | --- |
@@ -16,48 +17,75 @@ public `pAdiletq/Easy-ArXiv` repository and its production branch. Use:
 | Build command | `python scripts/build_pages.py` |
 | Build output directory | `dist` |
 
-No npm install or frontend dependencies are required. Set the **runtime**
-environment variable `BACKEND_ORIGIN` to the exact Cloud Run service origin,
-for example `https://SERVICE-PROJECT-NUMBER.REGION.run.app`. Use the real URL
-returned by the backend deployment. The worker accepts only HTTPS `*.run.app`
-origins without a path, query, user information, or port. It fails closed with a
-generic 503 when this value is missing. Re-deploy Pages after changing bindings.
+Keep dependency installation enabled. The repository's `package-lock.json` pins
+the Node dependencies. For a local build, run `npm ci` first and ensure Node.js
+and Python 3.10+ are on PATH. The build fails if Node or the local esbuild package
+is missing; it never substitutes the older proxy worker.
 
-Do not add Google API keys or ORCID client secrets to Cloudflare build variables
-or this repository. They belong only in the backend secret store. Configure
-the backend's `PUBLIC_ORIGIN` and ORCID callback to match the production Pages
-URL or custom domain. Preview deploys can display the interface independently;
-do not treat them as separate production OAuth callback origins.
+`scripts/build_worker.mjs` bundles `cloudflare/edge-worker.mjs` as a minified
+ES2022 module. It uses the esbuild JavaScript API, with no `.env` loader, environment
+substitutions, or source maps. `scripts/build_pages.py` copies an explicit list
+of public assets and produces `dist/_worker.js`. The Python API, local databases,
+dotfiles, credentials, and unused generated images are excluded.
 
-`_worker.js` is built from `pages-worker.mjs`. `_routes.json` invokes it only for
-`/api`, `/auth`, their children, and `/`. The root is included to support older
-ORCID apps whose registered callback is `/`. A normal home-page request serves
-static HTML without contacting Cloud Run. All other page routes and assets are
-served directly by Pages. Pages clean URLs map `read.html` to `/read`, and the
-same pattern covers `/papers`, `/saved`, `/quest`, and `/ai_quest`.
+`_routes.json` invokes the Worker for `/api`, `/auth`, their children, `/health`,
+and `/`. The root handles older ORCID apps with a `/` callback; normal home-page
+requests serve static HTML without contacting D1 or an external AI provider.
+Other HTML, CSS, JavaScript, and images are served directly by Pages. Clean URLs
+cover `/papers`, `/read`, `/saved`, `/quest`, and `/ai_quest`.
 
-The proxy preserves request bodies, original browser `Origin` / `Sec-Fetch-Site`,
-and authentication cookies. It does not follow OAuth redirects; backend-local
-redirect locations become frontend locations. Multiple `Set-Cookie` headers
-remain separate. API/auth/callback responses are never cached. Request-provided
-forwarding headers are removed. `x-easy-arxiv-public-origin` is informational;
-the backend independently checks its configured `PUBLIC_ORIGIN`.
+## Database and runtime bindings
+
+Create a D1 database and apply [d1-schema.sql](d1-schema.sql) in its dashboard
+console. Bind it to the Pages **production** environment using the name `DB`:
+**Settings → Bindings → Add → D1 database**. D1 database identifiers are not API
+tokens, but no private credentials are needed in the repository to use bindings.
+
+Set these production runtime variables under **Settings → Variables and Secrets**:
+
+| Name | Value |
+| --- | --- |
+| `PUBLIC_ORIGIN` | exact production HTTPS Pages URL or custom origin, with no path |
+| `ORCID_CLIENT_ID` | public application client ID |
+| `ORCID_REDIRECT_URI` | `PUBLIC_ORIGIN/auth/callback`; register this exact URL with ORCID |
+| `GEMINI_MODEL` | model enabled for the owner's Gemini API project |
+| `AI_USER_DAILY_LIMIT` | `10` initially |
+| `AI_GLOBAL_DAILY_LIMIT` | `100` initially |
+
+Add `ORCID_CLIENT_SECRET` and `GOOGLE_API_KEY` as **encrypted secrets**, never as
+plain text build variables or repository files. These values are only used by
+the runtime Worker. Enter them in Cloudflare's private secret fields, not in
+source, shell arguments, screenshots, logs, or chat. Re-deploy after changing
+bindings or secrets.
+
+Leave production database bindings and secrets out of preview environments.
+Preview pages can display the interface; only the configured production origin
+may perform account actions. Keep OAuth access logs and request-body logging
+disabled to avoid recording temporary authorization codes.
 
 ## Checks
 
-```text
+```sh
+npm ci
 python -m unittest discover -s tests -p "test_pages*.py"
-node --test tests/test_pages_worker.mjs
+node --test tests/test_*.mjs tests/test_*.cjs
 python scripts/build_pages.py
+python scripts/check_public_secrets.py
 ```
 
-After deployment, verify that the home page still opens while the backend is
-unavailable, search reaches the backend, and ORCID signs in and out at the
-frontend URL. Do not upload `dist` by the dashboard drag-and-drop mechanism:
-use the Git integration so the advanced-mode worker is deployed too.
+After deployment, verify `/health`, real arXiv search, ORCID login/logout, and
+account-scoped saved papers. New AI generations require login and respect D1
+quotas; the prepared example remains available to guests. The AI Worker passes
+the validated original arXiv PDF URL to Gemini for study notes and questions.
+An unreadable or unsupported PDF produces an error, not invented replacement
+content. Keep the project on the Free plan and monitor its runtime limits.
+
+Use Git integration rather than dashboard drag-and-drop so Pages deploys the
+advanced worker with the static files. The retained `pages-worker.mjs` is an
+optional older Cloud Run proxy; it is not bundled by the production build.
 
 Official references: [Advanced mode](https://developers.cloudflare.com/pages/functions/advanced-mode/),
 [Function routing](https://developers.cloudflare.com/pages/functions/routing/),
+[D1 bindings and encrypted secrets](https://developers.cloudflare.com/pages/functions/bindings/),
 [GitHub integration](https://developers.cloudflare.com/pages/configuration/git-integration/github-integration/),
-[Serving Pages](https://developers.cloudflare.com/pages/configuration/serving-pages/),
-[Runtime headers](https://developers.cloudflare.com/workers/runtime-apis/headers/).
+[Serving Pages](https://developers.cloudflare.com/pages/configuration/serving-pages/).

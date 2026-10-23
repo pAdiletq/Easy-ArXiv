@@ -1,0 +1,13 @@
+{
+  "name": "easy-arxiv",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "fast-xml-parser": "5.11.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
