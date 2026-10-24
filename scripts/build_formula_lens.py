@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "extensions" / "formula-lens"
 FILES = ("manifest.json", "sidepanel.html", "panel.css", "panel.js", "sidepanel.js",
          "background.js", "selection.js", "formula-engine.js", "formula-worker.js",
-         "api-client.js", "paper-fetch.js", "paper-controller.js", "README.md",
+         "api-client.js", "paper-fetch.js", "paper-controller.js", "motion.js", "README.md",
          "icons/icon16.png", "icons/icon32.png", "icons/icon48.png", "icons/icon128.png")
 NATIVE_PERMISSIONS = {"contextMenus", "sidePanel", "storage", "activeTab"}
 LOCAL_ICONS = {str(size): f"icons/icon{size}.png" for size in (16, 32, 48, 128)}

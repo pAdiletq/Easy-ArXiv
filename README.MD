@@ -42,6 +42,8 @@ The candidate workflow reads the complete PDF first, then explains a selected fo
 
 Chrome keeps its native PDF viewer and the original address. A separate expression sandbox already runs supported numerical calculations locally. The article-analysis service requires an explicit action and an ORCID-approved connection; provider keys stay on the server. The current upload transport needs adaptation and runtime profiling for Cloudflare Free before enabling that service. A prepared interface example is labeled as sample content, not a live AI result.
 
+Choose **Try a worked example** to explore a small LoRA weight update without a PDF, sign-in or AI request. Change **Update strength**, or use **Play update** to compare the original and updated matrices. Playback runs once and respects reduced-motion preferences; its values are illustrative.
+
 **[Preview and local installation guide](extensions/formula-lens/README.md)** · [Extension source](extensions/formula-lens)
 
 <details>

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Easy ArXiv — Formula Lens",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Understand formulas in a paper's context beside Chrome's original PDF viewer. AI analysis requires an explicit action.",
   "minimum_chrome_version": "116",
   "permissions": ["contextMenus", "sidePanel", "storage", "activeTab"],

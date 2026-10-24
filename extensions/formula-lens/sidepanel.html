@@ -27,14 +27,20 @@
     <section id="emptyPanel" class="empty-panel" aria-labelledby="lensTitle">
       <h1 id="lensTitle">Understand a formula<br>in context.</h1>
       <p class="intro">Analyze the paper first. Then explore what a selected formula means in that work.</p>
+      <div class="usage-entry">
+        <button id="usageExample" class="secondary-button" type="button">Try a worked example <span aria-hidden="true">→</span></button>
+        <p class="field-hint">See a model’s weights change. No PDF, account or AI request needed.</p>
+      </div>
+      <details class="usage-how">
+        <summary>How it works with your paper</summary>
       <ol class="native-steps" aria-label="How to explain a formula from a paper">
         <li><span aria-hidden="true">1</span><p>Open the paper PDF and analyze it above.</p></li>
         <li><span aria-hidden="true">2</span><p>Select a formula. Open Formula Lens from the selection’s right-click menu.</p></li>
         <li><span aria-hidden="true">3</span><p>Check the expression, then choose <strong>Explain formula</strong>.</p></li>
       </ol>
+      </details>
       <p id="selectionFeedback" class="notice" role="status"></p>
       <p id="previewBadge" class="preview-note" hidden>Interface preview. Examples do not represent an analyzed paper.</p>
-      <button id="previewExample" class="preview-button" type="button" hidden>Open interface example <span aria-hidden="true">→</span></button>
 
       <details id="expressionSandbox" class="sandbox-details">
         <summary>Expression sandbox</summary>
@@ -62,6 +68,7 @@
         <div><h1 id="formulaTitle">Formula</h1><a id="selectedSource" class="selected-source" target="_blank" rel="noopener noreferrer">Source PDF</a></div>
         <button id="closeLens" class="icon-button" type="button" aria-label="Return to formula selection">×</button>
       </div>
+      <p id="usageExampleNote" class="sample-note" hidden></p>
       <details id="sourceDetails" class="source-details">
         <summary>Selection from the PDF</summary><pre id="rawSelection"></pre>
       </details>
@@ -89,11 +96,18 @@
         <div id="analysisView" class="analysis-view" hidden>
           <p id="formulaExplanation" class="formula-explanation"></p>
           <p id="visualPurpose" class="visual-purpose" hidden></p>
+          <div id="sampleStrengthControls" class="sample-strength-controls" hidden>
+            <div class="sample-strength-label"><label for="exampleStrength">Update strength</label><span id="exampleStrengthValue" class="tabular-number" aria-live="off">1.00</span></div>
+            <input id="exampleStrength" type="range" min="0" max="2" step="0.05" value="1" aria-describedby="strengthHint">
+            <div id="strengthHint" class="strength-hint"><span>0 · original</span><span>2 · double update</span></div>
+            <button id="playExample" class="secondary-button play-example" type="button">Play update <span aria-hidden="true">▶</span></button>
+          </div>
           <figure id="visualization" class="visualization" aria-label="Numerical example visualization">
             <svg id="formulaPlot" viewBox="0 0 340 210" role="img" aria-label="Numerical example plot"></svg>
             <div id="matrixView" class="matrix-view" hidden></div>
             <output id="scalarResult" class="scalar-result" aria-label="Calculated result" hidden></output>
           </figure>
+          <p id="exampleResult" class="example-result-status" role="status" aria-live="polite" hidden></p>
           <div id="plotToolbar" class="plot-toolbar" hidden>
             <label class="plot-variable" for="plotVariable">Horizontal axis <select id="plotVariable" aria-label="Horizontal-axis variable"></select></label>
             <details class="range-details"><summary>Range</summary><div class="range-fields"><label>From <input id="plotMin" type="number" value="-4" step="any" inputmode="decimal"></label><label>To <input id="plotMax" type="number" value="4" step="any" inputmode="decimal"></label></div></details>

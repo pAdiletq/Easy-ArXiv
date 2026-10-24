@@ -9,22 +9,24 @@ export function createPaperController({doc=globalThis.document,api=globalThis.ch
   service={connect:connectFormulaService,request:formulaRequest,disconnect:disconnectFormulaService}}={}){
   const $=id=>doc.getElementById(id),preview=isLocalPreview(href);
   let source=null,context=null,selection='',generation=0,operation=null,connection=null,disposed=false,connecting=null;
+  let sample=false,sampleReturnSource=null;
   const text=(tag,value,className)=>{const node=doc.createElement(tag);node.textContent=value;if(className)node.className=className;return node;};
   const status=value=>{$('paperStatus').textContent=value;};
   function controls(){
-    $('analyzePaper').disabled=!!operation||!source||preview;
+    $('analyzePaper').disabled=!!operation||!source||preview||sample;
     $('analyzePaper').textContent=operation?'Working…':context?'Analyze again':'Analyze paper';
-    $('analyzeFormula').disabled=!!operation||(isPaperMode()&&!context&&!preview);
+    $('analyzeFormula').disabled=!!operation||sample||(isPaperMode()&&!context&&!preview);
   }
   function resetOutput(){ $('paperFormulaView').hidden=true;hideExample(); }
   function setSource(next){
-    if(source?.originalUrl===next?.originalUrl){controls();return;}
+    const leavingSample=sample;sample=false;sampleReturnSource=null;$('usageExampleNote').hidden=true;
+    if(!leavingSample&&source?.originalUrl===next?.originalUrl){controls();return;}
     generation++;operation?.abort();operation=null;source=next||null;context=null;selection='';resetOutput();
     $('paperPanel').classList.remove('context-ready');
     $('paperTitle').textContent='Start with the paper.';
     $('paperSource').hidden=!source;
     if(source){$('paperSource').href=source.originalUrl;$('paperSource').textContent=source.label+' ↗';status('Ready to analyze this PDF.');}
-    else{$('paperSource').removeAttribute('href');status('Open a paper PDF to get started.');}
+    else{$('paperSource').removeAttribute('href');status(preview?'Sample content only. No PDF or formula is sent to the AI service.':'Open a paper PDF to get started.');if(preview)$('paperTitle').textContent='Interface preview';}
     controls();
   }
   async function message(type,extra={}){
@@ -35,8 +37,8 @@ export function createPaperController({doc=globalThis.document,api=globalThis.ch
   async function refresh(){
     if(disposed||preview||connecting)return;
     const version=generation;
-    try{const active=await message('formula/paper-source');if(version===generation&&!connecting){if(active.source.originalUrl!==source?.originalUrl){setSource(active.source);clearSelection();}}}
-    catch{if(version===generation&&!connecting&&source){setSource(null);clearSelection();}}
+    try{const active=await message('formula/paper-source');if(version===generation&&!connecting){const expected=sample?sampleReturnSource?.originalUrl:source?.originalUrl;if(active.source.originalUrl!==expected){setSource(active.source);clearSelection();}}}
+    catch{if(version===generation&&!connecting&&source&&(!sample||sampleReturnSource)){setSource(null);clearSelection();}}
   }
   function begin(){operation?.abort();operation=new AbortController();const version=++generation;controls();return {version,controller:operation,sourceURL:source?.originalUrl};}
   const current=job=>!disposed&&generation===job.version&&!job.controller.signal.aborted&&source?.originalUrl===job.sourceURL;
@@ -59,7 +61,7 @@ export function createPaperController({doc=globalThis.document,api=globalThis.ch
   async function readPaper(job){return message('formula/read-paper',{sourceId:source.sourceId,expectedOriginalURL:job.sourceURL,expectedTabId:job.tabId});}
   async function verifyTab(job){const active=await message('formula/paper-source');return active.tabId===job.tabId&&active.source.originalUrl===job.sourceURL;}
   async function analyze(){
-    if(!source||preview||operation)return;
+    if(!source||preview||sample||operation)return;
     const job=begin();context=null;resetOutput();showIssue();
     try{
       await captureTab(job);if(!current(job))return;
@@ -73,7 +75,7 @@ export function createPaperController({doc=globalThis.document,api=globalThis.ch
       status('Paper context is ready. Select a formula in the PDF, then explain it.');
     }catch(error){failure(error,job);}finally{finish(job);}
   }
-  function render(result){
+  function render(result,exampleOptions={}){
     resetOutput();
     if(result.status!=='ready'){
       showIssue((result.limitations||['The paper does not define this selection clearly. Select the complete formula and its definition.']).join(' '));return;
@@ -97,12 +99,13 @@ export function createPaperController({doc=globalThis.document,api=globalThis.ch
       if(source?.originalUrl&&Number.isSafeInteger(item.page)&&item.page>0){const url=new URL(source.originalUrl);url.hash=`page=${item.page}`;link.href=url.href;link.target='_blank';link.rel='noopener noreferrer';}
       line.append(link);evidence.append(line,text('blockquote',item.quote));
     }
-    evidence.append(text('p','AI-generated interpretation. Check the quoted passages and calculations against the original paper.'));
+    evidence.append(text('p',exampleOptions.sample?'Prepared teaching example. Check the reference and the simplified calculation against the original paper.':'AI-generated interpretation. Check the quoted passages and calculations against the original paper.'));
     for(const item of result.limitations||[])evidence.append(text('p',item));
     $('paperFormulaView').hidden=false;showIssue();
-    if(example.interactive?.expression&&example.interactive?.purpose)showExample(example.interactive);
+    if(example.interactive?.expression&&example.interactive?.purpose)showExample(example.interactive,exampleOptions);
   }
   async function explain(rawText){
+    if(sample){showIssue('This is a worked example with toy values. Return to your PDF and analyze it to explain its formulas.');return;}
     if(preview){showIssue('This is an interface preview. Use the sample button or the separate expression sandbox.');return;}
     if(!source||!context){showIssue('Analyze this paper first so the formula can be explained in context.');return;}
     if(!rawText.trim()||rawText.length>2000){showIssue('Select a complete formula, up to 2000 characters.');return;}
@@ -121,32 +124,39 @@ export function createPaperController({doc=globalThis.document,api=globalThis.ch
   }
   function selected(rawText,nextSource){generation++;operation?.abort();operation=null;setSource(nextSource);selection=rawText;resetOutput();controls();if(!context)showIssue('Analyze this paper first. The selected formula will stay here.');}
   function edited(){selection=$('expressionInput').value;generation++;operation?.abort();operation=null;resetOutput();controls();}
-  function clear(){selection='';generation++;operation?.abort();operation=null;resetOutput();controls();void refresh();}
+  function clear(){const restore=sampleReturnSource,wasSample=sample;selection='';generation++;operation?.abort();operation=null;resetOutput();if(wasSample)setSource(restore);controls();void refresh();}
+  function openUsageExample(){
+    if(disposed)return;
+    const restore=sample?sampleReturnSource:source;
+    generation++;operation?.abort();operation=null;context=null;sample=true;sampleReturnSource=restore;
+    source={originalUrl:'https://arxiv.org/pdf/2106.09685',label:'LoRA · arXiv:2106.09685',sourceId:'arxiv:2106.09685'};
+    selection='W = W_0 + strength*matmul(B, A)';resetOutput();
+    showSelection(selection,source,true);
+    $('usageExampleNote').hidden=false;
+    $('usageExampleNote').textContent='Sample article · toy values · no AI request. This is a simplified illustration, not a live analysis of your PDF.';
+    $('paperPanel').classList.add('context-ready');
+    $('paperTitle').textContent='LoRA: Low-Rank Adaptation';status('Worked example · illustrative values');
+    $('paperSource').hidden=false;$('paperSource').href=source.originalUrl;$('paperSource').textContent='Source paper ↗';
+    render({status:'ready',formulaName:'Low-rank weight update',
+      purpose:'Adapt a pretrained model by learning a small update BA while keeping its original weights W₀ fixed.',
+      applications:[{field:'Language models',explanation:'Task-specific adaptation, including summarization and natural-language-to-SQL.',source:'paper'}],
+      workedExample:{assumptions:['Toy values, not measurements from the paper. Set W₀ = [[1,0],[0,1]], A = [[1,0]] and B = [[0.1],[0.2]]. The example strength is 1.'],
+        steps:['Multiply B by A: BA = [[0.1,0],[0.2,0]].','Scale this update by the example strength, then add it to W₀. At strength 1: W = [[1.1,0],[0.2,1]].'],
+        result:'The first column changes; the second stays the same in this toy example. Set the strength to 0 to recover W₀.',
+        interactive:{expression:'W_0 + strength*matmul(B, A)',bindings:{W_0:[[1,0],[0,1]],B:[[.1],[.2]],A:[[1,0]],strength:1},purpose:'Change the update strength to see which entries of the adapted weight matrix change. Strength 0 gives the original matrix; strength 1 applies the full toy update.'}},
+      conclusion:'A low-rank update changes the model through two smaller matrices. This toy calculation illustrates the operation; it does not predict model quality.',
+      evidence:[{page:4,quote:'During training, W0 is frozen and does not receive gradient updates'}],limitations:['The paper scales the update using α/r. The example strength replaces that scale for illustration and is not a reported trained value.']},{sample:true,open:true});
+    showFormula(selection);controls();
+  }
   $('paperPrivacy').textContent='PDFs and selections are sent to Easy ArXiv and Google AI. Context is cached for up to 24 hours; Easy ArXiv does not store the PDF. Limit: 6 MiB. Requires ORCID. Explaining a formula sends the PDF again.';
   $('analyzePaper').addEventListener('click',analyze);
+  $('usageExample').addEventListener('click',openUsageExample);
   api?.tabs?.onActivated?.addListener(()=>{void refresh();});
   api?.tabs?.onUpdated?.addListener((_id,change)=>{if(change.url||change.status==='complete')void refresh();});
   if(preview){
     $('paperTitle').textContent='Interface preview';status('Sample content only. No PDF or formula is sent to the AI service.');
     $('paperPrivacy').textContent='This local preview shows the proposed layout. It does not represent a live article analysis.';
-    $('analyzePaper').disabled=true;$('previewBadge').hidden=false;$('previewExample').hidden=false;
-    $('previewExample').addEventListener('click',()=>{
-      source={originalUrl:'https://arxiv.org/pdf/2106.09685',label:'LoRA · arXiv:2106.09685',sourceId:'arxiv:2106.09685'};
-      showSelection('W = W_0 + matmul(B, A)',source);
-      $('paperPanel').classList.add('context-ready');
-      $('paperTitle').textContent='LoRA: Low-Rank Adaptation';status('Sample article context · interface preview');
-      $('paperSource').hidden=false;$('paperSource').href=source.originalUrl;$('paperSource').textContent='Source paper ↗';
-      render({status:'ready',formulaName:'Low-rank weight update',
-        purpose:'Adapt a pretrained model by learning a small update BA while keeping its original weights W₀ fixed.',
-        applications:[{field:'Language models',explanation:'Task-specific adaptation, including summarization and natural-language-to-SQL.',source:'paper'}],
-        workedExample:{assumptions:['Toy values, not measurements from the paper. Set W₀ = [[1,0],[0,1]], A = [[1,0]] and B = [[0.1],[0.2]].'],
-          steps:['Multiply B by A: BA = [[0.1,0],[0.2,0]].','Add BA to W₀: W = [[1.1,0],[0.2,1]].'],
-          result:'The first column changes; the second stays the same in this toy example.',
-          interactive:{expression:'W_0 + matmul(B, A)',bindings:{W_0:[[1,0],[0,1]],B:[[.1],[.2]],A:[[1,0]]},purpose:'Change A or B to see which entries of the adapted weight matrix change.'}},
-        conclusion:'A low-rank update changes the model through two smaller matrices. This toy calculation illustrates the operation; it does not predict model quality.',
-        evidence:[{page:4,quote:'During training, W0 is frozen and does not receive gradient updates'}],limitations:['The paper also describes a scaling factor. This toy example uses a scale of 1.']});
-      showFormula('W = W_0 + matmul(B, A)');
-    });
+    $('analyzePaper').disabled=true;$('previewBadge').hidden=false;
   }else{controls();void refresh();}
-  return {selected,explain,edited,clear,refresh,isWorking:()=>!!operation,ignoreSelection:(raw,nextSource)=>!!operation&&raw===selection&&nextSource?.originalUrl===source?.originalUrl,dispose(){disposed=true;generation++;operation?.abort();}};
+  return {selected,explain,edited,clear,refresh,openUsageExample,isSample:()=>sample,isWorking:()=>!!operation,ignoreSelection:(raw,nextSource)=>!!operation&&raw===selection&&nextSource?.originalUrl===source?.originalUrl,dispose(){disposed=true;generation++;operation?.abort();}};
 }

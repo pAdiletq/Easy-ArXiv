@@ -16,7 +16,7 @@ builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
 EXPECTED_RUNTIME = {"manifest.json", "sidepanel.html", "panel.css", "panel.js", "sidepanel.js",
                     "background.js", "selection.js", "formula-engine.js", "formula-worker.js",
-                    "api-client.js", "paper-fetch.js", "paper-controller.js", "README.md",
+                    "api-client.js", "paper-fetch.js", "paper-controller.js", "motion.js", "README.md",
                     "icons/icon16.png", "icons/icon32.png", "icons/icon48.png", "icons/icon128.png"}
 
 
@@ -234,13 +234,13 @@ class FormulaBuildTests(unittest.TestCase):
                                 builder.build()
                             self.assertFalse((root / ".formula-lens-build").exists())
 
-    def test_reviewed_network_modules_cannot_enable_other_network_primitives_or_eval(self):
+    def test_reviewed_network_and_motion_modules_cannot_enable_other_network_primitives_or_eval(self):
         rejected = ['new XMLHttpRequest();', 'new WebSocket("wss://example.invalid/");',
                     'new EventSource("https://example.invalid/");',
                     'navigator.sendBeacon("https://example.invalid/", "x");',
                     'importScripts("https://example.invalid/code.js");',
                     'eval("1+1");', 'new Function("return 1");']
-        for module in ("api-client.js", "paper-fetch.js"):
+        for module in ("api-client.js", "paper-fetch.js", "motion.js"):
             for code in rejected:
                 with self.subTest(module=module, code=code), tempfile.TemporaryDirectory() as directory:
                     root, source = self.fixture(directory)

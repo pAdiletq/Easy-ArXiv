@@ -172,8 +172,6 @@ test('standalone preview starts empty and the native bridge never fabricates a s
   createFormulaPanelBridge({api: {}, doc, href: 'http://127.0.0.1:5079/sidepanel.html?preview=1'});
   assert.equal(selections(doc).length, 0);
   assert.equal(doc.nodes.get('previewBadge').hidden, false);
-  assert.equal(doc.nodes.get('previewExample').hidden, false);
-  doc.nodes.get('previewExample').click();
   assert.equal(selections(doc).length, 0);
   assert.equal(doc.nodes.get('selectedSource').href, undefined);
 });

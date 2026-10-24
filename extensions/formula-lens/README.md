@@ -8,6 +8,24 @@ The article-analysis workflow is an experimental local implementation. **Hosted 
 
 The current JSON/base64 upload path still needs a transport change and native runtime profiling before it can be enabled within Cloudflare Free's CPU budget. A successful local test does not establish production capacity for a 6 MiB PDF.
 
+## Try a usage example
+
+The built-in **Usage example** is available without an account or an AI request. It demonstrates a small LoRA-style weight update through a matrix animation rather than a generic function graph:
+
+```text
+W(strength) = W₀ + strength · BA
+
+W₀ = [[1, 0], [0, 1]]
+A  = [[1, 0]]
+B  = [[0.1], [0.2]]
+```
+
+1. Open **Usage example** in the panel.
+2. Move **strength** from 0 to 2 to see which entries of the 2×2 matrix change.
+3. Choose **Play update** to animate one update. At strength 1, the resulting matrix is `[[1.1, 0], [0.2, 1]]`.
+
+This example uses illustrative, hand-picked values. It is not model training, a simulation of a paper's experiment, or weights reported by the LoRA authors. It does not analyze the current PDF or enable hosted analysis. The animation plays once and respects the browser's reduced-motion preference.
+
 ## Intended workflow
 
 1. Open the original paper PDF over HTTPS in Chrome desktop 116 or later.

@@ -1,18 +1,24 @@
-import {prepareExpression,compileFormula} from './formula-engine.js';
+import {prepareExpression,compileFormula,evaluateFormula} from './formula-engine.js';
 import {createPaperController} from './paper-controller.js';
+import {createMotion} from './motion.js';
 const $=id=>document.getElementById(id), svgNS='http://www.w3.org/2000/svg', mathNS='http://www.w3.org/1998/Math/MathML';
 let worker=null,requestId=0,timeout=null,inputDelay=null,expression='',bindings=Object.create(null),program=null;
 let view={variable:undefined,min:-4,max:4};
 let mode='paper',preserveSelection=false,papers;
+let localSample=null;
+const motionPreference=window.matchMedia('(prefers-reduced-motion: reduce)'),sampleMotion=createMotion(),entryAnimations=new Set();
 const examples={gaussian:'f(x) = exp(-x^2 / (2*s^2))',wave:'f(t) = A*sin(w*t)',matrix:'softmax([1, 2, 3])'};
 const numberText=n=>Math.abs(n)<1e-12?'0':Math.abs(n)>=1e5||Math.abs(n)<1e-3?n.toExponential(2):Number(n.toPrecision(5)).toString();
 const axisText=n=>Math.abs(n)<1e-12?'0':Math.abs(n)>=1e4||Math.abs(n)<1e-3?n.toExponential(1).replace('e+','e'):Number(n.toPrecision(2)).toString();
 function issue(message=''){$('formulaIssue').textContent=message;$('formulaIssue').hidden=!message;}
-function cancelCalculation(){requestId++;clearTimeout(timeout);clearTimeout(inputDelay);if(worker)worker.terminate();worker=null;document.querySelector('.formula-panel').removeAttribute('aria-busy');}
+function stopMotion(){sampleMotion.cancel();for(const animation of entryAnimations)animation.cancel();entryAnimations.clear();$('matrixView').classList.remove('is-playing');$('playExample').setAttribute('aria-pressed','false');$('playExample').textContent='Play update';}
+function enter(node,delay=0){if(motionPreference.matches||!node?.animate)return;const animation=node.animate([{opacity:0,transform:'translateY(7px)'},{opacity:1,transform:'translateY(0)'}],{duration:240,delay,easing:'cubic-bezier(.2,.7,.3,1)',fill:'backwards'});entryAnimations.add(animation);animation.finished.then(()=>entryAnimations.delete(animation),()=>entryAnimations.delete(animation));}
+function cancelCalculation(){stopMotion();requestId++;clearTimeout(timeout);clearTimeout(inputDelay);if(worker)worker.terminate();worker=null;document.querySelector('.formula-panel').removeAttribute('aria-busy');}
+function resetSample(){localSample=null;$('sampleStrengthControls').hidden=true;$('exampleResult').hidden=true;$('interactiveExample').classList.remove('is-sample');}
 function editorVisible(show){document.querySelector('.expression-editor').hidden=!show;$('formattedExpression').hidden=show;}
-function clearFormula(){cancelCalculation();program=null;expression='';bindings=Object.create(null);$('activePanel').hidden=true;$('emptyPanel').hidden=false;$('analysisView').hidden=true;$('interactiveExample').hidden=true;$('paperFormulaView').hidden=true;}
+function clearFormula(){cancelCalculation();resetSample();program=null;expression='';bindings=Object.create(null);$('activePanel').hidden=true;$('emptyPanel').hidden=false;$('analysisView').hidden=true;$('interactiveExample').hidden=true;$('paperFormulaView').hidden=true;}
 function openFormula(rawText,source=null,demo=false){
-  mode=source?'paper':'sandbox';preserveSelection=false;
+  mode=source?'paper':'sandbox';preserveSelection=false;resetSample();$('editExpression').hidden=false;
   cancelCalculation();program=null;bindings=Object.create(null);view={variable:undefined,min:-4,max:4};$('plotMin').value='-4';$('plotMax').value='4';
   $('emptyPanel').hidden=true;$('activePanel').hidden=false;$('analysisView').hidden=true;$('paperFormulaView').hidden=true;$('interactiveExample').hidden=true;$('interactiveExample').open=false;$('formulaTitle').textContent=source?'Formula':'Expression sandbox';$('rawSelection').textContent=rawText;
   $('sourceDetails').hidden=!source;$('sourceDetails').open=false;$('selectedSource').hidden=!source?.originalUrl;
@@ -67,7 +73,18 @@ function drawVector(values){
   values.forEach((value,i)=>{const yy=15+i*28,width=Math.abs(value)/scale*111;target.append(s('text',{x:18,y:yy+12},String(i+1)),s('rect',{x:45,y:yy,width:222,height:16,rx:3,class:'vector-track'}));const bar=s('rect',{x:value<0?156-width:156,y:yy,width,height:16,rx:3,class:`vector-bar${value<0?' negative':''}`});bar.append(s('title',{},`Component ${i+1}: ${numberText(value)}`));target.append(bar,s('text',{x:330,y:yy+12,'text-anchor':'end'},numberText(value)));});
   target.append(s('path',{class:'plot-axis',d:`M156 9V${height-20}`}),s('text',{x:156,y:height-3,'text-anchor':'middle'},'0'));
 }
-function drawMatrix(rows){const table=document.createElement('table');table.setAttribute('aria-label',`Matrix ${rows.length} by ${rows[0].length}`);const max=Math.max(1e-12,...rows.flat().map(Math.abs));rows.forEach((values,ri)=>{const tr=document.createElement('tr');values.forEach((value,ci)=>{const td=document.createElement('td');td.textContent=numberText(value);td.title=`Row ${ri+1}, column ${ci+1}: ${value}`;td.style.backgroundColor=`rgba(128,0,255,${.04+Math.abs(value)/max*.17})`;tr.append(td);});table.append(tr);});$('matrixView').replaceChildren(table);$('matrixView').hidden=false;}
+function matrixTable(rows,label,result=false){const table=document.createElement('table');table.setAttribute('aria-label',label);if(result)table.dataset.result='true';for(const values of rows){const tr=document.createElement('tr');for(const value of values){const td=document.createElement('td');td.textContent=numberText(value);tr.append(td);}table.append(tr);}return table;}
+function drawMatrix(rows){
+  const target=$('matrixView'),baseline=localSample?.bindings.W_0,shape=rows.map(row=>row.length).join(',')+':'+!!baseline;
+  let table=target.querySelector('table[data-result]');
+  if(target.dataset.shape!==shape||!table){
+    target.dataset.shape=shape;table=matrixTable(rows,baseline?'Updated weights':`Matrix ${rows.length} by ${rows[0].length}`,true);
+    if(baseline){const pair=document.createElement('div');pair.className='matrix-pair';const original=document.createElement('div'),current=document.createElement('div'),arrow=document.createElement('span');original.className='matrix-original';arrow.className='matrix-arrow';arrow.textContent='→';arrow.setAttribute('aria-hidden','true');for(const [node,caption]of [[original,'Original W₀'],[current,'Updated W']]){const label=document.createElement('p');label.className='matrix-caption';label.textContent=caption;node.append(label);}original.append(matrixTable(baseline,'Original weights'));current.append(table);pair.append(original,arrow,current);target.replaceChildren(pair);}else target.replaceChildren(table);
+  }
+  const max=Math.max(1e-12,...rows.flat().map(Math.abs));
+  [...table.rows].forEach((row,ri)=>[...row.cells].forEach((td,ci)=>{const value=rows[ri][ci],difference=baseline?value-baseline[ri][ci]:null,intensity=baseline?.[ri]?.[ci]!==undefined ? .025+Math.min(1,Math.abs(difference)/.4)*.22 : .04+Math.abs(value)/max*.17;td.textContent=numberText(value);td.title=`Row ${ri+1}, column ${ci+1}: ${value}`;td.classList.toggle('is-updated',baseline?Math.abs(difference)>1e-10:false);td.style.backgroundColor=`rgba(128,0,255,${intensity})`;}));
+  target.hidden=false;
+}
 function renderVisualization(response){
   $('formulaPlot').setAttribute('hidden','');$('matrixView').hidden=true;$('scalarResult').hidden=true;$('plotToolbar').hidden=true;const validCurve=response.plot&&response.plot.points.some(point=>Number.isFinite(point[1]));
   if(validCurve){drawCurve(response.plot);$('plotToolbar').hidden=false;}else if(typeof response.value==='number'){$('scalarResult').textContent=numberText(response.value);$('scalarResult').hidden=false;}else if(Array.isArray(response.value)){if(response.value.every(v=>typeof v==='number'))drawVector(response.value);else if(response.value.every(r=>Array.isArray(r)&&r.every(v=>typeof v==='number')))drawMatrix(response.value);}
@@ -104,14 +121,30 @@ function runCalculation({fresh=false,example=null}={}){
   worker.onerror=event=>{event.preventDefault();if(current!==requestId)return;cancelCalculation();issue('The local module did not start. Reload the extension and try again.');};worker.postMessage({id:current,expression,bindings,view});
 }
 function sandboxCalculation(){papers.clear();preserveSelection=false;$('interactiveExample').hidden=false;$('interactiveExample').open=true;$('visualPurpose').hidden=false;$('visualPurpose').textContent='Numerical sandbox: change the values to inspect the result. This does not explain a paper.';runCalculation({fresh:true});}
-function showPaperExample(example){preserveSelection=true;$('interactiveExample').hidden=false;$('interactiveExample').open=false;$('visualPurpose').hidden=false;$('visualPurpose').textContent=example.purpose;$('exampleDisclosure').textContent='Illustrative inputs, not reported experimental results. Calculations run on your device.';runCalculation({fresh:true,example});}
+function setExampleStrength(value,{announce=true}={}){
+  if(!localSample)return;
+  const strength=Math.min(2,Math.max(0,Number(value)));if(!Number.isFinite(strength))return;
+  localSample.bindings.strength=strength;$('exampleStrength').value=String(strength);$('exampleStrengthValue').textContent=strength.toFixed(2);
+  const result=evaluateFormula(localSample.program,localSample.bindings);renderVisualization({value:result,plot:null});
+  if(announce)$('exampleResult').textContent=strength===0?'Original weights recovered: the update is zero.':`Update strength ${numberText(strength)}. Highlighted cells change; the second column stays the same.`;
+  const info=document.createElement('p');info.textContent='A and B stay fixed in this toy example. The slider scales their matrix product before it is added to W₀. This is a calculation, not model training.';const valueText=document.createElement('pre');valueText.textContent=`Updated W: ${JSON.stringify(result)}`;$('calculationInfo').replaceChildren(info,valueText);
+}
+function showPaperExample(example,options={}){
+  preserveSelection=true;$('interactiveExample').hidden=false;$('interactiveExample').open=options.open===true;$('visualPurpose').hidden=false;$('visualPurpose').textContent=example.purpose;$('exampleDisclosure').textContent='Illustrative inputs, not reported experimental results. Calculations run on your device.';
+  if(options.sample===true){
+    cancelCalculation();localSample={program:compileFormula(example.expression),bindings:structuredClone(example.bindings)};$('sampleStrengthControls').hidden=false;$('exampleResult').hidden=false;$('analysisView').hidden=false;$('formulaExplanation').textContent='';$('parametersDetails').hidden=true;
+    const steps=document.createElement('details'),summary=document.createElement('summary');steps.className='example-steps';summary.textContent='Example inputs and steps';steps.append(summary,...$('workedExample').children);$('workedExample').replaceChildren($('interactiveExample'),steps);$('interactiveExample').classList.add('is-sample');
+    setExampleStrength(1);return;
+  }
+  resetSample();runCalculation({fresh:true,example});
+}
 function showSelectedFormula(rawText){
   try{formatExpression(compileFormula(rawText));}catch{$('formulaDisplay').textContent=rawText;}
-  editorVisible(false);
+  editorVisible(false);$('editExpression').hidden=papers?.isSample()===true;enter($('formattedExpression'));[...$('paperFormulaView').querySelectorAll('.explanation-section')].forEach((section,index)=>enter(section,Math.min(index,3)*35));
 }
-papers=createPaperController({showIssue:issue,showExample:showPaperExample,hideExample(){cancelCalculation();$('interactiveExample').hidden=true;$('analysisView').hidden=true;},showSelection:openFormula,showFormula:showSelectedFormula,clearSelection:clearFormula,isPaperMode:()=>mode==='paper'});
+papers=createPaperController({showIssue:issue,showExample:showPaperExample,hideExample(){cancelCalculation();resetSample();$('activePanel').append($('interactiveExample'));$('interactiveExample').hidden=true;$('analysisView').hidden=true;},showSelection:openFormula,showFormula:showSelectedFormula,clearSelection:clearFormula,isPaperMode:()=>mode==='paper'});
 document.addEventListener('formula-selection',event=>{if(typeof event.detail?.rawText!=='string'||event.detail.rawText.length>2000||papers.ignoreSelection(event.detail.rawText,event.detail.source))return;openFormula(event.detail.rawText,event.detail.source||null,event.detail.demo===true);if(event.detail.source)papers.selected(event.detail.rawText,event.detail.source);});
-document.addEventListener('formula-clear',()=>{if(papers.isWorking()){void papers.refresh();return;}clearFormula();papers.clear();});
+document.addEventListener('formula-clear',()=>{if(papers.isWorking()||papers.isSample()){void papers.refresh();return;}clearFormula();papers.clear();});
 $('manualAnalyze').addEventListener('click',()=>{const text=$('manualExpression').value.trim();if(!text){$('manualExpression').focus();return;}openFormula(text);sandboxCalculation();});
 for(const button of document.querySelectorAll('[data-example]'))button.addEventListener('click',()=>{openFormula(examples[button.dataset.example],null,true);sandboxCalculation();});
 $('analyzeFormula').addEventListener('click',()=>{if(mode==='paper')void papers.explain($('expressionInput').value.trim());else sandboxCalculation();});$('editExpression').addEventListener('click',()=>{cancelCalculation();editorVisible(true);$('expressionInput').focus();});
@@ -120,3 +153,13 @@ for(const id of ['manualExpression','expressionInput'])$(id).addEventListener('k
 $('plotVariable').addEventListener('change',()=>{view.variable=$('plotVariable').value;runCalculation();});
 for(const id of ['plotMin','plotMax'])$(id).addEventListener('change',()=>{const min=Number($('plotMin').value),max=Number($('plotMax').value);if(!Number.isFinite(min)||!Number.isFinite(max)||min>=max||Math.max(Math.abs(min),Math.abs(max))>1e6){issue('Enter an increasing range between -1,000,000 and 1,000,000.');return;}view.min=min;view.max=max;issue();runCalculation();});
 $('closeLens').addEventListener('click',()=>{clearFormula();papers.clear();});window.addEventListener('pagehide',()=>{cancelCalculation();papers.dispose();});
+$('exampleStrength').addEventListener('input',()=>{stopMotion();setExampleStrength($('exampleStrength').value);});
+$('playExample').addEventListener('click',()=>{
+  if(!localSample)return;
+  if(sampleMotion.active){stopMotion();setExampleStrength($('exampleStrength').value);return;}
+  $('matrixView').classList.add('is-playing');$('playExample').setAttribute('aria-pressed','true');$('playExample').textContent='Stop animation';$('exampleResult').textContent='Playing the update: original weights → updated weights.';
+  sampleMotion.play({from:0,to:1,duration:1100,onFrame:value=>setExampleStrength(value,{announce:false}),onFinish:()=>{$('matrixView').classList.remove('is-playing');$('playExample').setAttribute('aria-pressed','false');$('playExample').textContent='Replay update';setExampleStrength(1);}});
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopMotion();});
+globalThis.chrome?.tabs?.onActivated?.addListener(stopMotion);
+motionPreference.addEventListener?.('change',()=>{if(motionPreference.matches&&sampleMotion.active){stopMotion();setExampleStrength(1);}});

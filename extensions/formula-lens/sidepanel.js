@@ -83,10 +83,9 @@ export function createFormulaPanelBridge({api = globalThis.chrome, doc = globalT
     });
     void refresh();
   } else if (isLocalPreview(href)) {
-    const badge = byId('previewBadge'), example = byId('previewExample');
+    const badge = byId('previewBadge');
     if (badge) badge.hidden = false;
-    if (example) example.hidden = false;
-    clearSelection('Local interface preview. The sample starts only when you choose the example button.');
+    clearSelection('Local interface preview. Use “Try a worked example” to explore the sample.');
   } else {
     clearSelection('This panel runs as a Chrome extension. Open the original PDF over HTTPS or enter an expression manually.');
   }
