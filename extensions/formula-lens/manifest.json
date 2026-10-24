@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Easy ArXiv — Formula Lens",
+  "version": "0.1.0",
+  "description": "Explore selected equations beside Chrome's original PDF viewer. No redirection or changes to your PDF.",
+  "minimum_chrome_version": "116",
+  "permissions": ["contextMenus", "sidePanel", "storage", "activeTab"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "Formula Lens · Easy ArXiv"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; connect-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'; frame-src 'none'; base-uri 'none'"
+  }
+}

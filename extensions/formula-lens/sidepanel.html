@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>Formula Lens · Easy ArXiv</title><link rel="stylesheet" href="panel.css"><script type="module" src="panel.js"></script><script type="module" src="sidepanel.js"></script></head><body>
+    <aside class="formula-panel" aria-labelledby="lensTitle">
+      <div class="panel-topline"><span class="eyebrow">FORMULA LENS</span><span class="local-status"><i></i> Локально</span></div>
+      <section id="emptyPanel" class="empty-panel">
+        <div class="selection-symbol" aria-hidden="true"><span>ƒ(x)</span><i></i><i></i><i></i><i></i></div>
+        <h1 id="lensTitle">Идея за формулой.</h1><p id="previewBadge" class="preview-note" hidden>Предпросмотр панели. В Chrome она открывается рядом с обычным PDF, не заменяя его.</p><button id="previewExample" class="demo-button" hidden>Показать учебный пример →</button>
+        <p>Выделите формулу в обычном PDF Chrome. Нажмите правой кнопкой и выберите «Разобрать формулу · Easy ArXiv».</p>
+        <div class="first-equation"><span>В ЭТОМ ПАТЧЕ</span><strong>Scaled dot-product attention</strong><p>Формула (1), страница 4 в <em>Attention Is All You Need</em>.</p></div>
+        <p id="selectionFeedback" class="selection-feedback" role="status"></p>
+        <small>Произвольные формулы пока не распознаются. PDF не изменяется, выделение никуда не отправляется.</small>
+      </section>
+      <section id="activePanel" hidden aria-labelledby="formulaTitle"><a id="selectedSource" class="selected-source" target="_blank" rel="noopener noreferrer">Attention Is All You Need · arxiv.org</a>
+        <div class="formula-heading"><span class="equation-reference" id="equationReference">ФОРМУЛА 01 · ATTENTION</span><button id="closeLens" class="quiet-icon" aria-label="Закрыть разбор формулы">×</button></div>
+        <h1 id="formulaTitle">Как работает attention</h1>
+        <p class="formula-intro">Q выбирает, какие значения V важнее. Меняй числа — и смотри, как меняются веса.</p>
+        <div class="equation" aria-label="Attention от Q, K и V равно softmax от Q K транспонированного, делённого на корень из d k, умножить на V">
+          <math display="block"><mrow><mi>Attention</mi><mo>(</mo><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi><mo>)</mo><mo>=</mo><mi>softmax</mi><mo>(</mo><mfrac><mrow><mi>Q</mi><msup><mi>K</mi><mi>T</mi></msup></mrow><msqrt><msub><mi>d</mi><mi>k</mi></msub></msqrt></mfrac><mo>)</mo><mi>V</mi></mrow></math>
+        </div>
+        <div class="example-note"><span>УЧЕБНЫЙ ПРИМЕР</span><p>Три токена, два измерения: <b>d<sub>k</sub> = 2</b>. Числа заданы для примера, это не веса из статьи.</p></div>
+        <div class="experiment-heading"><h2>Измени вектор</h2><button id="resetExample" class="text-button">Сбросить ↺</button></div>
+        <div class="matrix-tabs" role="group" aria-label="Какой вектор изменить"><button type="button" data-matrix="Q" aria-pressed="true">Q <span>запрос</span></button><button type="button" data-matrix="K" aria-pressed="false">K <span>ключ</span></button><button type="button" data-matrix="V" aria-pressed="false">V <span>значение</span></button></div>
+        <div id="tokenChooser" class="token-chooser" role="group" aria-label="Токен для изменения" hidden><button data-item-index="0" aria-pressed="true">The</button><button data-item-index="1" aria-pressed="false">cat</button><button data-item-index="2" aria-pressed="false">sat</button></div>
+        <div class="vector-controls"><label><span id="xLabel">Q₁</span><input id="vectorX" type="range" min="-2" max="2" step="0.05" value="1"><output id="xValue" for="vectorX">1.00</output></label><label><span id="yLabel">Q₂</span><input id="vectorY" type="range" min="-2" max="2" step="0.05" value="0"><output id="yValue" for="vectorY">0.00</output></label></div>
+        <div class="step-tabs" role="tablist" aria-label="Шаг вычисления"><button id="step0" role="tab" data-step="0" aria-selected="false" aria-controls="stepPanel" tabindex="-1"><b>1</b> Сравнить</button><button id="step1" role="tab" data-step="1" aria-selected="true" aria-controls="stepPanel" tabindex="0"><b>2</b> Взвесить</button><button id="step2" role="tab" data-step="2" aria-selected="false" aria-controls="stepPanel" tabindex="-1"><b>3</b> Смешать</button></div>
+        <div id="stepPanel" class="step-panel" role="tabpanel" aria-labelledby="step1" tabindex="0">
+          <div class="visual-title"><h2 id="visualTitle">Веса внимания</h2><span id="weightTotal">Σ = 100%</span></div>
+          <div id="weightView"><div id="attentionRows" class="attention-rows"></div></div>
+          <div id="scoreView" hidden><div id="scoreRows" class="score-rows"></div></div>
+          <div id="mixView" hidden>
+            <svg class="output-plot" viewBox="0 0 300 200" role="img" aria-labelledby="plotTitle"><title id="plotTitle">Векторы значений и итоговый взвешенный вектор</title><defs><marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#7825be"/></marker></defs><path class="plot-grid" d="M30 20V180M90 20V180M150 20V180M210 20V180M270 20V180M30 20H270M30 60H270M30 100H270M30 140H270M30 180H270"/><path class="plot-axes" d="M30 100H270M150 20V180"/><g id="valueVectors"></g><line id="outputArrow" class="output-arrow" x1="150" y1="100" x2="150" y2="100" marker-end="url(#arrow)"/><circle id="outputDot" class="output-dot" cx="150" cy="100" r="5"/><text x="278" y="104" class="axis-label">x</text><text x="146" y="14" class="axis-label">y</text></svg>
+            <div class="plot-legend"><span><i></i> Значения V</span><span><i></i> Результат</span></div>
+          </div>
+          <p id="stepExplanation" class="step-explanation"></p>
+        </div>
+        <div class="result-strip"><span>Результат · Attention</span><output id="outputResult" aria-live="polite">[0.00, 0.00]</output></div>
+        <p id="changeSummary" class="change-summary" role="status"></p>
+        <details class="source-details"><summary>Что взято из статьи?</summary><p>Сама формула (1) и её смысл — из раздела 3.2.1. Числа Q, K и V заданы только для этого интерактивного примера. Изменения не затрагивают исходный PDF.</p><a href="https://arxiv.org/pdf/1706.03762" target="_blank" rel="noopener noreferrer">Исходная статья · страница 4 ↗</a><p>PDF обрабатывается на устройстве. API-ключи и внешняя AI-служба этому примеру не нужны.</p></details>
+      </section>
+    </aside>
+</body></html>
