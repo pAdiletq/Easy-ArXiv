@@ -102,7 +102,9 @@ export async function generateStudy(pdfURL, env, fetchImpl = fetch) {
   const timeout = setTimeout(() => controller.abort(), 75000);
   try {
     const response = await fetchImpl(endpoint, {
-      method: 'POST', redirect: 'error', signal: controller.signal,
+      // Workers supports manual redirects, not redirect:'error'. Reject every
+      // non-2xx response below without forwarding the API header elsewhere.
+      method: 'POST', redirect: 'manual', signal: controller.signal,
       headers: {'content-type': 'application/json', 'x-goog-api-key': key},
       body: JSON.stringify({
         systemInstruction: {parts: [{text: STUDY_PROMPT}]},

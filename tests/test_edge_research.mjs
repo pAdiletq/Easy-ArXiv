@@ -96,6 +96,27 @@ test('search acquires durable upstream slot once and serves repeated searches fr
   assert.deepEqual(first, second); assert.equal(slots, 1); assert.equal(calls, 1); assert.equal(slept, 3000);
 });
 
+test('research invokes receiver-sensitive Worker fetch without binding its dependency container', async () => {
+  let calls = 0;
+  // Node fetch tolerates arbitrary receivers, unlike Cloudflare workerd. Model
+  // that native contract explicitly so a real outbound fetch cannot be mistaken
+  // for an arXiv outage merely because tests use permissive arrow-function mocks.
+  function workerFetch(url) {
+    assert.ok(this === undefined || this === globalThis, 'Worker fetch requires the global receiver');
+    calls++;
+    return Promise.resolve(new Response(url.includes('/stats/') ?
+      'month,submissions,historical_delta\n2026-08,31173,0\n2026-09,40363,0\n2026-10,31672,0\n' : FEED));
+  }
+  const deps = dependencies({ fetchImpl: workerFetch });
+  const search = await handleResearch(request('/api/search?query=attention'), {}, deps);
+  assert.equal(search.status, 200);
+  assert.equal((await search.json()).papers.length, 1);
+  const stats = await handleResearch(request('/api/stats'), {}, deps);
+  assert.equal(stats.status, 200);
+  assert.deepEqual((await stats.json()).months.map(month => month.value), [31173, 40363]);
+  assert.equal(calls, 2);
+});
+
 test('D1 cached responses bypass upstream acquisition and network requests', async () => {
   const cached = parseFeed(FEED); let bound;
   const db = { prepare(sql) { assert.match(sql, /^SELECT payload, expires/); return {

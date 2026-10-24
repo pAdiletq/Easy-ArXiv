@@ -302,8 +302,13 @@ export async function handleAuth(request, env, { fetchImpl = fetch, now = () => 
         const provider = await fetchImpl('https://orcid.org/oauth/token', { method: 'POST',
           headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ ...settings, grant_type: 'authorization_code', code }),
-          signal: AbortSignal.timeout(20000), redirect: 'error' });
-        if (!provider.ok) throw new Error('Provider rejected sign-in');
+          // Never follow a redirect with the OAuth secret/code. Workers does
+          // not support redirect:'error', so inspect a manual response instead.
+          signal: AbortSignal.timeout(20000), redirect: 'manual' });
+        if (!provider.ok) {
+          await provider.body?.cancel();
+          throw new Error('Provider rejected sign-in');
+        }
         user = publicIdentity(await boundedJSON(provider, 65536));
         if (!user) throw new Error('Invalid provider identity');
       } catch { throw new EdgeHTTPError(502, 'ORCID sign-in could not be completed. Please try again.'); }

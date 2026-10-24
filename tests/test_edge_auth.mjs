@@ -36,7 +36,7 @@ test('ORCID state is browser-bound, one-use and survives handler/worker reconstr
   const fetchImpl = async (url, options) => {
     calls++;
     assert.equal(url, 'https://orcid.org/oauth/token');
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     assert.equal(options.body.get('redirect_uri'), origin + '/auth/callback');
     assert.equal(options.body.get('client_secret'), 'synthetic-test-orcid-secret');
     return Response.json({ orcid: ownerA, name: 'Test Reader', access_token: 'synthetic-test-provider-token' });
@@ -70,6 +70,32 @@ test('failed provider responses are fixed safe errors and consumed state cannot 
   assert.equal(result.status, 502);
   assert.ok(!(await result.text()).includes('provider-sensitive-response'));
   assert.equal(await new EdgeStore(env.DB).consumeState(await hashToken(state), 0), false);
+});
+
+test('ORCID rejects every provider 3xx without forwarding OAuth credentials or creating a session', async t => {
+  const env = setup(t);
+  let calls = 0;
+  for (let status = 300; status < 400; status++) {
+    const start = await handleAuth(request('/auth/login'), env);
+    const state = new URL(start.headers.get('location')).searchParams.get('state');
+    const callback = request(`/auth/callback?state=${state}&code=test-code`,
+      {headers: {Cookie: cookieValue(start, 'easy_arxiv_oauth_state')}});
+    const result = await handleAuth(callback, env, {fetchImpl: async (url, options) => {
+      calls++;
+      assert.equal(url, 'https://orcid.org/oauth/token');
+      assert.equal(options.redirect, 'manual');
+      assert.equal(options.body.get('client_secret'), 'synthetic-test-orcid-secret');
+      return new Response(status === 304 ? null : 'synthetic-provider-response-detail',
+        {status, headers: {location: 'https://untrusted.example/provider-redirect'}});
+    }});
+    assert.equal(result.status, 502);
+    assert.equal(result.headers.get('location'), null);
+    assert.equal(result.headers.get('set-cookie'), null);
+    assert.ok(!(await result.text()).includes('synthetic-'));
+  }
+  assert.equal(calls, 100);
+  assert.equal(env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM edge_sessions').get().n, 0);
+  assert.equal(env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM edge_oauth_states').get().n, 0);
 });
 
 test('anonymous sign-in state capacity is bounded atomically and recovers after expiry', async t => {

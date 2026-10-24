@@ -107,10 +107,14 @@ async function boundedText(response, maximum) {
 async function fetchText(url, deps, { maximum = 256 * 1024, timeout = 25000, permitRedirects = true } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+  // Worker-native fetch checks its receiver. Calling deps.fetchImpl(...) binds
+  // the dependency object as `this` and throws before any outbound network I/O.
+  // Invoke the captured function directly, as the global Fetch API expects.
+  const fetchImpl = deps.fetchImpl;
   try {
     let target = new URL(url);
     for (let step = 0; step < 4; step++) {
-      const response = await deps.fetchImpl(target.href, { redirect: 'manual', signal: controller.signal,
+      const response = await fetchImpl(target.href, { redirect: 'manual', signal: controller.signal,
         headers: { Accept: 'application/atom+xml, text/csv, application/xml;q=0.9, */*;q=0.5',
           'User-Agent': 'EasyArXiv/1.0 (personal academic reading application)' } });
       if ([301, 302, 303, 307, 308].includes(response.status)) {

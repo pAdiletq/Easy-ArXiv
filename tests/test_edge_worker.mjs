@@ -62,7 +62,7 @@ test('AI generation uses only a canonical public PDF and keeps credentials in pr
     assert.equal(url, 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent');
     assert.ok(!url.includes('synthetic-test'));
     assert.equal(options.headers['x-goog-api-key'], env.GOOGLE_API_KEY);
-    assert.equal(options.redirect, 'error');
+    assert.equal(options.redirect, 'manual');
     const body = JSON.parse(options.body);
     assert.deepEqual(body.contents[0].parts[0], {fileData: {mimeType: 'application/pdf', fileUri: pdf}});
     assert.ok(body.systemInstruction.parts[0].text.includes('untrusted'));
@@ -86,6 +86,28 @@ test('AI requires an account and real same-origin request, even before cache loo
   assert.equal(crossOrigin.status, 403);
   assert.equal(calls, 0);
   assert.equal(env.DB.sqlite.prepare('SELECT COUNT(*) AS n FROM edge_quota_reservations').get().n, 0);
+});
+
+test('AI rejects every provider 3xx without forwarding the API header or response details', async () => {
+  let calls = 0;
+  for (let status = 300; status < 400; status++) {
+    const env = {GOOGLE_API_KEY: 'synthetic-test-gemini-value'};
+    const destination = 'https://untrusted.example/provider-redirect';
+    await assert.rejects(generateStudy(pdf, env, async (url, options) => {
+      calls++;
+      assert.equal(new URL(url).origin, 'https://generativelanguage.googleapis.com');
+      assert.equal(options.redirect, 'manual');
+      assert.equal(options.headers['x-goog-api-key'], env.GOOGLE_API_KEY);
+      return new Response(status === 304 ? null : 'synthetic-provider-response-detail',
+        {status, headers: {location: destination}});
+    }), error => {
+      assert.equal(error.status, 502);
+      assert.ok(!error.message.includes('synthetic-'));
+      assert.ok(!error.message.includes(destination));
+      return true;
+    });
+  }
+  assert.equal(calls, 100);
 });
 
 test('AI cache persists across handler reconstruction and daily quota blocks extra provider requests', async t => {
