@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>Connect Formula Lens · Easy ArXiv</title>
+  <link rel="icon" href="/static/brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script type="module" src="/static/js/extension-connect.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to connection request</a>
+  <header class="site-header"><div class="container header-inner"><a class="site-brand" href="/">Easy ArXiv<small>Research Made Easy</small></a></div></header>
+  <main id="main" class="container content-section" tabindex="-1">
+    <section class="empty-state" aria-labelledby="connectTitle">
+      <p class="eyebrow">OPTIONAL EXTENSION CONNECTION</p>
+      <h1 id="connectTitle">Connect Formula Lens</h1>
+      <p>Continue only if you just requested this connection from the extension.</p>
+      <p id="connectionStatus" role="status" aria-live="polite">Checking connection request…</p>
+      <p>Requesting extension: <code id="extensionId">—</code></p>
+      <p id="accountLabel"></p>
+      <p>This grants article analysis for 20 minutes. It does not grant access to saved papers, browser cookies, or browsing history. Analysis uses your shared Easy ArXiv AI quota.</p>
+      <p>No paper is uploaded by connecting. Formula Lens must ask before sending a paper you choose to Easy ArXiv and its AI provider. AI output should be checked against the original research.</p>
+      <p><a id="signIn" href="/auth/login" target="_blank" rel="noopener noreferrer" hidden>Sign in with ORCID in a new tab</a></p>
+      <p id="signInHelp" hidden>After signing in, return here and refresh your sign-in status. Connecting still requires the button below.</p>
+      <button id="refreshSession" type="button">Refresh sign-in status</button>
+      <button id="approveConnection" class="button primary" type="button" disabled>Connect this extension</button>
+      <p><a id="cancelConnection" href="/">Cancel and return to Easy ArXiv</a></p>
+    </section>
+  </main>
+</body>
+</html>

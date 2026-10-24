@@ -1,45 +1,54 @@
-// Recognition is intentionally restricted to Eq. 1 in Attention Is All You Need.
-// This is a signature check for a local worked example, not a formula parser.
-const MAX_SELECTION_LENGTH = 2000;
+// A source/selection boundary only. Mathematical interpretation belongs to the
+// local expression engine; the bridge never rewrites case, powers or spacing.
+export const MAX_SELECTION_LENGTH = 2000;
+const UNSAFE_URL_CHARACTERS = /[\u0000-\u0020\u007f-\u009f\u202a-\u202e\u2066-\u2069\\]/;
+const ARXIV_PATH = /^\/pdf\/((?:\d{4}\.\d{4,5}|[a-z]+(?:[-.][a-zA-Z]+)*\/\d{7})(?:v[1-9]\d*)?)(?:\.pdf)?$/;
 
-export function normalizeSelection(text) {
-  if (typeof text !== 'string' || !text.trim() || text.length > MAX_SELECTION_LENGTH) return '';
-  return text.normalize('NFKC')
-    .replace(/[\u00ad\u200b-\u200f\u2060\ufeff]/g, '')
-    .replace(/[\s\u00a0]+/g, '')
-    .replace(/[⎷]/g, '√')
-    .replace(/K⊤/gi, 'KT')
-    .replace(/K\^\{?T\}?/gi, 'KT')
-    .replace(/d_\{?k\}?/gi, 'dk')
-    .toLowerCase();
+export function validSelection(text) {
+  return typeof text === 'string' && text.length <= MAX_SELECTION_LENGTH && Boolean(text.trim());
 }
 
-export function classifySelection(text, paperId) {
-  if (typeof paperId !== 'string' || !/^1706\.03762(?:v[1-9]\d*)?$/.test(paperId)) return null;
-  const normalized = normalizeSelection(text);
-  // PDF text order omits a drawn fraction bar, so both QKT/√dk and QKT√dk
-  // represent the same printed fraction. Every operand and the square root
-  // must be present; a word such as "softmax" alone never opens an experiment.
-  if (!/^attention\(q,k,v\)=softmax\(qkt\/?(?:√dk|sqrt\(dk\))\)v(?:\(1\))?$/.test(normalized)) return null;
-  return {formula: 'scaled-attention', paperId: '1706.03762', normalized};
-}
-
-export function arxivPDFSource(raw) {
-  if (typeof raw !== 'string' || raw.length > 2048 || /[\u0000-\u0020\u007f?\\]/.test(raw)) return null;
+export function pdfSource(rawURL) {
+  if (typeof rawURL !== 'string' || rawURL.length > 8192 || UNSAFE_URL_CHARACTERS.test(rawURL)) return null;
   try {
-    const url = new URL(raw);
-    if (url.protocol !== 'https:' || url.hostname !== 'arxiv.org' || url.username ||
-        url.password || url.port || url.search) return null;
-    const path = /^\/pdf\/((?:\d{4}\.\d{4,5}|[a-z]+(?:[-.][a-zA-Z]+)*\/\d{7})(?:v[1-9]\d*)?)(?:\.pdf)?$/.exec(url.pathname);
-    if (!path) return null;
-    return {paperId: path[1].replace(/v\d+$/, ''), versionedId: path[1], originalUrl: raw};
+    const url = new URL(rawURL);
+    const authority = /^https:\/\/([^/?#]+)/i.exec(rawURL)?.[1];
+    if (!authority || /[@%]/.test(authority) || url.protocol !== 'https:' || !url.hostname ||
+        url.username || url.password || url.port) return null;
+    if (url.hostname === 'arxiv.org') {
+      const match = ARXIV_PATH.exec(url.pathname);
+      if (!match) return null;
+      const versionedId = match[1];
+      return {originalUrl: rawURL, sourceId: 'arxiv:' + versionedId,
+        label: 'arxiv.org · ' + versionedId, paperId: versionedId.replace(/v\d+$/, ''), versionedId};
+    }
+    if (!/\.pdf$/i.test(url.pathname)) return null;
+    const filename = decodeURIComponent(url.pathname.slice(url.pathname.lastIndexOf('/') + 1));
+    if (!filename || UNSAFE_URL_CHARACTERS.test(filename.replace(/ /g, '')) || /[/\\]/.test(filename)) return null;
+    // Query parameters may identify signed/private download links. They remain
+    // only in the original link, never in the visible label or source identifier.
+    return {originalUrl: rawURL, sourceId: 'pdf:' + url.origin + url.pathname,
+      label: url.hostname + ' · ' + filename};
   } catch { return null; }
+}
+
+// Compatibility for callers that specifically need arXiv metadata.
+export function arxivPDFSource(rawURL) {
+  const source = pdfSource(rawURL);
+  return source?.paperId ? source : null;
+}
+
+export function samePDFDocument(first, second) {
+  if (!pdfSource(first) || !pdfSource(second)) return false;
+  const left = new URL(first), right = new URL(second);
+  left.hash = ''; right.hash = '';
+  return left.href === right.href;
 }
 
 export function isLocalPreview(href) {
   try {
     const url = new URL(href);
-    return url.protocol === 'http:' && url.hostname === '127.0.0.1' &&
+    return url.protocol === 'http:' && url.hostname === '127.0.0.1' && !url.username && !url.password &&
       url.pathname.endsWith('/sidepanel.html') && url.searchParams.get('preview') === '1';
   } catch { return false; }
 }

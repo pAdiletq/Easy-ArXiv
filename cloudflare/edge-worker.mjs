@@ -1,6 +1,8 @@
 import {EdgeStore, EdgeError, handleAuth, edgeJSON} from './edge-auth.mjs';
 import {ResearchError, handleResearch} from './edge-research.mjs';
 import {QuestError, handleAI} from './edge-ai.mjs';
+import {handleFormulaExtension} from './edge-formula-auth.mjs';
+import {handleFormulaAI, FormulaAIError} from './edge-formula.mjs';
 
 function publicOrigin(env) {
   try {
@@ -44,7 +46,9 @@ export async function handleRequest(request, env, deps = {}) {
       request = new Request(url, request);
     }
     const context = {...deps, store};
-    return await handleAuth(request, env, context) || await handleAI(request, env, context) ||
+    return await handleFormulaExtension(request, env, context, {handleAI: handleFormulaAI,
+      isSafeAIError: error => error instanceof FormulaAIError}) ||
+      await handleAuth(request, env, context) || await handleAI(request, env, context) ||
       await handleResearch(request, env, context) || edgeJSON({detail: 'Not found.'}, 404);
   } catch (error) {
     // Only handler errors with an explicit safe status/message reach clients.

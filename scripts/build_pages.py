@@ -20,6 +20,7 @@ PAGE_FILES = {
     "saved.html": "static/saved.html",
     "quest.html": "static/quest.html",
     "ai_quest.html": "static/quest.html",
+    "extension-connect.html": "static/extension-connect.html",
 }
 ASSET_FILES = (
     "static/brand.svg",
@@ -32,6 +33,7 @@ ASSET_FILES = (
     "static/js/app.js",
     "static/js/audio.js",
     "static/js/core.js",
+    "static/js/extension-connect.js",
     "static/js/hero.js",
     "static/js/papers.js",
     "static/js/quest.js",

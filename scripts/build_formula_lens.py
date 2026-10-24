@@ -3,6 +3,7 @@
 This builder never accepts a PDF path, copies PDF.js, or includes a PDF viewer.
 The optional preview is a separate copy of the same panel runtime, without a
 document fixture. Chrome installation and native PDF access remain user actions.
+Only the reviewed API client and active-document reader may make HTTPS requests.
 """
 from __future__ import annotations
 
@@ -17,8 +18,12 @@ import zipfile
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "extensions" / "formula-lens"
 FILES = ("manifest.json", "sidepanel.html", "panel.css", "panel.js", "sidepanel.js",
-         "background.js", "attention.js", "selection.js", "README.md")
+         "background.js", "selection.js", "formula-engine.js", "formula-worker.js",
+         "api-client.js", "paper-fetch.js", "paper-controller.js", "README.md",
+         "icons/icon16.png", "icons/icon32.png", "icons/icon48.png", "icons/icon128.png")
 NATIVE_PERMISSIONS = {"contextMenus", "sidePanel", "storage", "activeTab"}
+LOCAL_ICONS = {str(size): f"icons/icon{size}.png" for size in (16, 32, 48, 128)}
+NETWORK_MODULES = {"api-client.js", "paper-fetch.js"}
 
 
 def validate_native_contract(manifest: dict, inputs: list) -> None:
@@ -34,10 +39,14 @@ def validate_native_contract(manifest: dict, inputs: list) -> None:
     if (not isinstance(background, dict) or background.get("service_worker") != "background.js" or
             background.get("type") != "module" or not isinstance(panel, dict) or panel.get("default_path") != "sidepanel.html"):
         raise ValueError("Formula Lens must use its reviewed background module and side panel")
+    action = manifest.get("action")
+    if (manifest.get("icons") != LOCAL_ICONS or not isinstance(action, dict) or
+            action.get("default_icon") != LOCAL_ICONS):
+        raise ValueError("Formula Lens icons must use only the packaged local PNG files")
     policy_definition = manifest.get("content_security_policy")
     policy = policy_definition.get("extension_pages") if isinstance(policy_definition, dict) else None
     if not isinstance(policy, str):
-        raise ValueError("Formula Lens requires its offline extension content policy")
+        raise ValueError("Formula Lens requires its reviewed extension content policy")
     directives = {}
     for value in policy.split(";"):
         parts = value.split()
@@ -46,13 +55,24 @@ def validate_native_contract(manifest: dict, inputs: list) -> None:
         if parts[0] in directives:
             raise ValueError("Formula Lens content policy must not contain duplicate directives")
         directives[parts[0]] = parts[1:]
-    if (directives.get("connect-src") != ["'none'"] or directives.get("script-src") != ["'self'"] or
+    if (directives.get("connect-src") != ["https:"] or directives.get("script-src") != ["'self'"] or
+            directives.get("worker-src") != ["'self'"] or
             directives.get("object-src") != ["'none'"] or directives.get("img-src") != ["'self'"]):
-        raise ValueError("Formula Lens must not enable network requests, remote code, or evaluation")
-    forbidden_calls = re.compile(r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|importScripts|eval|Function)\s*\(|\.\s*sendBeacon\s*\(")
+        raise ValueError("Formula Lens requires reviewed HTTPS connections and local executable code")
+    forbidden_calls = re.compile(r"\b(?:XMLHttpRequest|WebSocket|EventSource|importScripts|eval|Function)\s*\(|\.\s*sendBeacon\s*\(")
+    fetch_calls = re.compile(r"\b(?:fetch|fetcher)\s*\(")
+    worker_calls = re.compile(r"\b(?:new\s+)?(?:Worker|SharedWorker)\s*\(")
+    local_worker = re.compile(r"\bnew\s+Worker\s*\(\s*(?:new\s+URL\s*\(\s*(['\"])(?:\./)?formula-worker\.js\1\s*,\s*import\.meta\.url\s*\)|(['\"])(?:\./)?formula-worker\.js\2)(?=\s*[,\)])")
     for relative, source in inputs:
-        if relative.suffix == ".js" and forbidden_calls.search(source.read_text(encoding="utf-8")):
+        if relative.suffix != ".js":
+            continue
+        text = source.read_text(encoding="utf-8")
+        if forbidden_calls.search(text):
             raise ValueError("Formula Lens runtime contains an unreviewed network or evaluation call")
+        if fetch_calls.search(text) and relative.as_posix() not in NETWORK_MODULES:
+            raise ValueError("Formula Lens fetch calls must stay inside the reviewed API and active-PDF modules")
+        if len(worker_calls.findall(text)) != len(local_worker.findall(text)):
+            raise ValueError("Formula Lens workers must use the packaged formula-worker.js path")
 
 
 def is_link_like(path: Path) -> bool:
@@ -129,7 +149,10 @@ def build(preview: bool = False) -> dict[str, str]:
         for relative, _ in inputs:
             # Explicit copies, not copytree: unrelated files can never become
             # preview inputs, even if added beside a prior package later.
-            shutil.copyfile(safe_file(unpacked / relative, unpacked), preview_directory / relative)
+            target = preview_directory / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            safe_directory(target.parent, preview_directory)
+            shutil.copyfile(safe_file(unpacked / relative, unpacked), target)
         result["preview"] = str(preview_directory)
     return result
 

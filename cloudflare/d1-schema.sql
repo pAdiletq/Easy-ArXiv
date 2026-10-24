@@ -82,3 +82,30 @@ CREATE TABLE IF NOT EXISTS edge_maintenance (
   name TEXT PRIMARY KEY,
   next_ms INTEGER NOT NULL
 );
+
+-- Optional Formula Lens grants. Pairing requires explicit website approval and
+-- PKCE proof; only hashes of short-lived scoped access tokens are persisted.
+CREATE TABLE IF NOT EXISTS formula_pairings (
+  pair_id TEXT PRIMARY KEY CHECK(length(pair_id)=43),
+  extension_id TEXT NOT NULL CHECK(length(extension_id)=32 AND extension_id NOT GLOB '*[^a-p]*'),
+  challenge TEXT NOT NULL CHECK(length(challenge)=43),
+  owner TEXT,
+  approved_at INTEGER,
+  parent_session_hash TEXT REFERENCES edge_sessions(token_hash) ON DELETE CASCADE
+    CHECK(parent_session_hash IS NULL OR length(parent_session_hash)=64),
+  expires INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS formula_pairings_expiry ON formula_pairings(expires);
+CREATE INDEX IF NOT EXISTS formula_pairings_extension ON formula_pairings(extension_id,expires);
+CREATE TABLE IF NOT EXISTS formula_extension_tokens (
+  token_hash TEXT PRIMARY KEY CHECK(length(token_hash)=64),
+  owner TEXT NOT NULL,
+  extension_id TEXT NOT NULL CHECK(length(extension_id)=32 AND extension_id NOT GLOB '*[^a-p]*'),
+  scope TEXT NOT NULL CHECK(scope='formula:analyze'),
+  parent_session_hash TEXT NOT NULL REFERENCES edge_sessions(token_hash) ON DELETE CASCADE CHECK(length(parent_session_hash)=64),
+  expires INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS formula_extension_tokens_expiry ON formula_extension_tokens(expires);
+CREATE INDEX IF NOT EXISTS formula_extension_tokens_owner ON formula_extension_tokens(owner,expires);

@@ -1,20 +1,22 @@
-import {arxivPDFSource} from './selection.js';
+import {pdfSource, samePDFDocument, validSelection} from './selection.js';
+import {registerPaperMessages} from './paper-fetch.js';
 
 export const FORMULA_MENU_ID = 'easy-arxiv-explore-formula';
 export const MAX_FORMULA_TABS = 20;
 
 export function selectedFormulaRecord(info, tab, now = Date.now()) {
   if (info?.menuItemId !== FORMULA_MENU_ID || info.editable || !Number.isSafeInteger(tab?.id) || tab.id < 0 ||
-      typeof info.selectionText !== 'string' || info.selectionText.length > 2000 || !info.selectionText.trim()) return null;
+      !validSelection(info.selectionText)) return null;
   // Native PDF selections come from an internal PDF frame. Only the actual
-  // top-level tab/page address identifies the paper; frameUrl is never trusted.
-  const fromTab = arxivPDFSource(tab.url);
+  // top-level tab/page address identifies the PDF; frameUrl is never trusted.
+  const fromTab = pdfSource(tab.url);
   if (typeof tab.url === 'string' && tab.url.length > 0 && !fromTab) return null;
-  const fromPage = arxivPDFSource(info.pageUrl);
-  if (fromTab && fromPage && fromTab.versionedId !== fromPage.versionedId) return null;
+  const fromPage = pdfSource(info.pageUrl);
+  if (typeof info.pageUrl === 'string' && info.pageUrl.length > 0 && !fromPage) return null;
+  if (fromTab && fromPage && !samePDFDocument(fromTab.originalUrl, fromPage.originalUrl)) return null;
   const source = fromTab || fromPage;
   if (!source) return null;
-  return {paperId: source.paperId, originalUrl: source.originalUrl, text: info.selectionText.trim(), updatedAt: now};
+  return {originalUrl: source.originalUrl, sourceId: source.sourceId, rawText: info.selectionText, updatedAt: now};
 }
 
 export function createFormulaBackground(api, now = Date.now) {
@@ -64,10 +66,10 @@ export function createFormulaBackground(api, now = Date.now) {
   async function registerMenu() {
     try {
       await api.contextMenus.removeAll();
-      api.contextMenus.create({id: FORMULA_MENU_ID, title: 'Разобрать формулу · Easy ArXiv', contexts: ['selection']},
+      api.contextMenus.create({id: FORMULA_MENU_ID, title: 'Explore formula · Easy ArXiv', contexts: ['selection']},
         () => {void api.runtime.lastError;});
-      // documentUrlPatterns matches the internal frame URL in Chromium. An
-      // arxiv.org filter can hide this item in the ordinary PDF viewer; the
+      // documentUrlPatterns matches the internal frame URL in Chromium. A
+      // website filter can hide this item in the ordinary PDF viewer; the
       // click handler instead enforces the strict original top-level URL.
     } catch { /* A failed API registration exposes no selection or document. */ }
   }
@@ -89,4 +91,5 @@ export function createFormulaBackground(api, now = Date.now) {
 
 if (globalThis.chrome?.runtime?.onInstalled && globalThis.chrome?.contextMenus && globalThis.chrome?.sidePanel) {
   createFormulaBackground(globalThis.chrome);
+  registerPaperMessages(globalThis.chrome);
 }
