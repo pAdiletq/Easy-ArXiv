@@ -13,6 +13,8 @@ Search arXiv, read the original research, and check your understanding with AI Q
   &nbsp;·&nbsp;
   <a href="https://www.producthunt.com/products/easy-arxiv">Product Hunt</a>
   &nbsp;·&nbsp;
+  <a href="#run-locally">Run locally</a>
+  &nbsp;·&nbsp;
   <a href="#formula-lens"><img src="https://img.shields.io/badge/Formula_Lens-Explore-8000FF?style=for-the-badge" height="28" alt="Explore Formula Lens"></a>
 </p>
 
@@ -33,19 +35,49 @@ Search, reading, and a prepared AI Quest example are available to guests. Genera
 
 ## Formula Lens
 
-**Explore the idea behind an equation, beside the paper.**
+> An optional Chrome side panel for exploring a formula beside the original PDF.
 
-Formula Lens is an optional browser companion. Its preview lets you experiment with supported mathematical expressions, change numerical inputs, and inspect the result beside a PDF. A worked example shows how changing a parameter affects a small calculation.
+**The website works without installing the extension.** Formula Lens is an additional tool for readers who want to experiment beside a PDF.
 
-The website works without installing the extension. General article-aware explanation is still in development; the preview does not promise automatic understanding of every equation.
+The preview supports numerical experiments with supported expressions, editable inputs, suitable plots, and an animated worked example. General article-aware interpretation remains in development; arbitrary equations may require correction or may be unsupported.
 
-This section is a product overview only. Extension source code and installation packages are excluded from the current version of this public repository.
+The extension's source code and installation packages are not published in this repository.
 
-## About this repository
+## Run locally
 
-This is the public presentation and website interface for Easy ArXiv. Server implementation, database schemas, deployment configuration, and Formula Lens source and installation packages are excluded from the current version.
+Use **Python 3.10+** from the repository root:
 
-Use [the live website](https://easy-arxiv.pages.dev) to search and read. This public checkout is not a complete self-hosted application.
+```sh
+python -m venv .venv
+# Activate .venv for your operating system, then:
+python -m pip install -r requirements.txt
+python -m uvicorn server:app --host 127.0.0.1 --port 5000
+```
+
+Open **http://127.0.0.1:5000**. On Windows, [`run.ps1`](run.ps1) can reuse an existing Python environment.
+
+For optional local Gemini and ORCID settings, copy the empty [configuration template](.env.example) to an ignored `.env`. Local reading lists use SQLite in `data/`.
+
+## Deploy
+
+The live app uses Cloudflare Pages and persistent account storage. The Cloudflare implementation and deployment instructions are maintained outside this public repository. The public checkout retains the Python application and website interface for local development.
+
+<details>
+<summary><strong>Development checks and safe publishing</strong></summary>
+
+Some edge tests and the Pages build require the separately maintained Cloudflare files.
+
+```sh
+npm ci
+python -m unittest discover -s tests -p "test_*.py"
+python scripts/check_public_secrets.py
+# Check the exact staged files and history before publishing:
+python scripts/check_public_secrets.py --staged --history
+```
+
+Keep API keys, OAuth secrets, populated `.env` files, databases, and user data out of Git. Never place credentials in public JSON, frontend code, build substitutions, or screenshots. The scanner reports locations without printing matched values. Revoke any previously exposed credential at its provider; removing a file does not revoke it.
+
+</details>
 
 ## Research sources
 
